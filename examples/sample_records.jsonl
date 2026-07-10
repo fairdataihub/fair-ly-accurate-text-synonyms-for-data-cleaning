@@ -1,0 +1,3 @@
+{"id": "1", "publisher": {"name": "Zenodo"}, "fundingReferences": [{"funderName": "National Science Foundation"}], "creators": [{"affiliation": [{"name": "Stanford University"}]}], "subjects": [{"subject": "Machine Learning"}]}
+{"id": "2", "publisher": {"name": "The publisher is Stanford University"}, "fundingReferences": [{"funderName": "NSF"}, {"funderName": "N.S.F."}], "creators": [{"affiliation": [{"name": "Stanford Univ."}]}], "subjects": [{"subject": "machine learning"}]}
+{"id": "3", "publisher": {"name": "The authors"}, "fundingReferences": [{"funderName": "National Science Foundation (NSF)"}], "creators": [{"affiliation": [{"name": "Stanford University, CA, USA"}, {"name": "MIT"}]}], "subjects": [{"subject": "ML"}]}
