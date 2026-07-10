@@ -16,7 +16,7 @@ from .synonyms import SynonymMap
 from .pipeline import Normalizer
 from .presets import PRESETS, get_preset
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "FieldConfig",

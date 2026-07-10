@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-07-10
+
+### Added
+- **Reference gold sets** (`gold/`) for `affiliation`, `funderName`, `publisher`,
+  `subject`, `rights` — true synonym groups plus adversarial near-misses.
+- **V-measure validation of the default presets.** A sweep (eps 0.05–1.0) against
+  the gold sets confirms every preset `eps` sits on its field's optimal plateau
+  (funder/subject V=1.00, publisher 0.99, affiliation 0.96, rights 0.82) and
+  documents the per-field over-merge cliff. Results and interpretation added to
+  `docs/methods.md` §8.
+
+### Changed
+- Docs and preset docstrings now describe the `eps` values as V-measure validated
+  (not "proposed"). No `eps` values changed — validation confirmed the existing
+  settings. `rights` flagged as better served by a controlled vocabulary.
+
 ## [0.1.0] - 2026-07-10
 
 Initial release. A generalizable, authority-aware synonym-normalization tool for
@@ -39,4 +55,5 @@ posters.science corpus.
 - Packaging (`fairly-synonyms`), optional `cluster` / `geo` / `all` extras, MIT
   license, and a test suite (30 tests) covering the pure-logic and clustering paths.
 
+[0.1.1]: https://github.com/fairdataihub/fair-ly-accurate-text-synonyms-for-data-cleaning/releases/tag/v0.1.1
 [0.1.0]: https://github.com/fairdataihub/fair-ly-accurate-text-synonyms-for-data-cleaning/releases/tag/v0.1.0

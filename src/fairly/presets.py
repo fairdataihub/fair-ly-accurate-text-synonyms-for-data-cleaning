@@ -1,8 +1,11 @@
 """Built-in cleaner and field presets for common DataCite / FAIR metadata fields.
 
-The per-field ``eps`` values are the ones validated on the posters.science corpus
-(publishers/funders/affiliations/subjects). Treat them as sensible starting
-points and re-tune for your data with :mod:`fairly.validate` (V-measure sweep).
+The per-field ``eps`` values are **V-measure validated** against the curated gold
+sets in ``gold/`` (see ``docs/methods.md`` for the sweep results): each sits on its
+field's optimal V-measure plateau. eps is insensitive when entities are well
+separated, so funders/affiliations are kept tight (0.07) to stay safe at real
+corpus *density*, where looser thresholds over-merge. Re-run
+``fairly validate`` on your own gold set when the corpus or embedding model changes.
 """
 from __future__ import annotations
 

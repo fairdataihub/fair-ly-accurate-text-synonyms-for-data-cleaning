@@ -186,8 +186,9 @@ Notes that matter in practice:
 `cluster_selection_epsilon` (`eps`) is the main dial: larger = more aggressive
 merging. The fixed HDBSCAN params (`min_cluster_size=2, min_samples=1,
 method="leaf"`) suit all these fields; only `eps`, `holdout` and `authority`
-change. Values below are validated on the posters.science corpus — **treat them
-as starting points and re-tune with §8**.
+change. The `eps` values below are **V-measure validated** (§8) — each sits on its
+field's optimal plateau — but re-tune for your own corpus, since the sensitive
+regime is data *density*, not the sparse gold.
 
 | Field type | eps | Holdout | Authority | Why |
 |---|---:|:---:|:---:|---|
@@ -235,14 +236,44 @@ ignored — matching how the normalizer treats noise (a noise term maps only to
 itself).
 
 ```bash
-fairly validate --gold affiliation_gold.tsv --preset affiliation --field affiliation
+fairly validate --gold gold/affiliation.tsv --preset affiliation --field affiliation
 #    eps   homogeneity  completeness  v_measure  clusters
-#   0.05      1.000         0.612        0.759       ...
-#   0.10      0.994         0.803        0.888       ...
-#   0.15      0.951         0.902        0.926       ...   <- best
-#   0.20      0.883         0.951        0.916       ...
-#   best: eps=0.15  v_measure=0.926
+#   0.05      0.945         0.973        0.959       12   <- plateau
+#   0.40      0.945         0.973        0.959       12   <- plateau
+#   0.50      0.864         0.970        0.914       10   <- homogeneity starts dropping
+#   0.60      0.540         0.954        0.689        5   <- over-merge cliff
+#   best: eps=0.05  v_measure=0.959
 ```
+
+### Validation results (reference gold sets)
+
+The `gold/` directory ships a small curated gold set per field (true synonym
+groups mixed with adversarial near-misses — `University of Washington` vs
+`Washington University`, US-NSF vs China-NSFC vs Swiss-SNSF, CC-BY vs CC-BY-SA).
+Sweeping `eps` from 0.05 to 1.0 against them:
+
+| Field | Ceiling V-measure | Optimal eps plateau | Over-merge cliff | Preset eps |
+|---|---:|:---:|:---:|---:|
+| `funderName` | 1.000 | 0.05 – 0.50 | 0.60 | 0.07 |
+| `subject` | 1.000 | 0.05 – 0.30 | 0.40 | 0.10 |
+| `publisher` | 0.986 | 0.05 – 0.40 | 0.50 | 0.30 |
+| `affiliation` | 0.959 | 0.05 – 0.40 | 0.50 | 0.07 |
+| `rights` | 0.819 | 0.05 – 0.20 | 0.30 | 0.08 |
+
+What this tells us:
+
+- **The preset `eps` values all sit on their field's optimal plateau** — validated,
+  not just chosen by hand.
+- **`eps` is insensitive while entities are well separated** (the flat plateau).
+  It only bites near the *cliff*, or at real-corpus **density**, where many more
+  variants pack the embedding space closer together. That density is why
+  `funderName` / `affiliation` are kept tight at 0.07 even though the sparse gold
+  tolerates far more — and why the cliff is a *ceiling*, not a target.
+- **`rights` is the weak field (0.82).** The embedding cannot cleanly separate
+  `CC-BY-SA 4.0` / `CC-BY-NC 4.0` / `CC-BY 3.0` — near-identical strings, different
+  licenses. For licenses, prefer a controlled-vocabulary map (SPDX / Creative
+  Commons ids) over embedding clustering.
+- Reproduce with `fairly validate --gold gold/<field>.tsv --preset <field>`.
 
 Re-run whenever the corpus, the field, or the embedding model changes, and record
 the chosen `eps` in your config. A gold set also doubles as a regression guard:

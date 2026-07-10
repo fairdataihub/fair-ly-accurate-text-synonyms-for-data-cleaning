@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fairly-synonyms"
-version = "0.1.0"
+version = "0.1.1"
 description = "Fair-ly accurate text synonyms for data cleaning: authority-aware synonym collapsing and normalization of FAIR / DataCite metadata fields."
 readme = "README.md"
 requires-python = ">=3.9"

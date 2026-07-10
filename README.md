@@ -91,9 +91,12 @@ Built-in `FieldConfig` presets for common DataCite/FAIR fields (`fairly presets`
 | `rights` | semantic | 0.08 | yes | — |
 | `geoLocationPlace` | geocode | — | — | — |
 
-These `eps` values were validated on the [posters.science](https://posters.science)
-corpus. **Re-tune for your data** with `fairly validate` — see
-[docs/methods.md](docs/methods.md) for why each field wants a different threshold.
+These `eps` values are **V-measure validated** against the curated gold sets in
+[`gold/`](gold/) — each sits on its field's optimal plateau (funder/subject 1.00,
+publisher 0.99, affiliation 0.96; `rights` 0.82, so prefer a controlled vocabulary
+for licenses). **Re-tune for your data** with `fairly validate` — see
+[docs/methods.md](docs/methods.md#8-v-measure-validation) for the full sweep and why
+each field wants a different threshold.
 
 ## Why these choices
 
