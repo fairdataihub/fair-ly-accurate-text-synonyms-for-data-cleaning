@@ -14,6 +14,7 @@ from typing import Dict
 from . import cleaners as C
 from .cleaners import Cleaner
 from .config import FieldConfig
+from .licenses import LICENSES
 
 # --- cleaner presets --------------------------------------------------------
 
@@ -58,9 +59,10 @@ PRESETS: Dict[str, FieldConfig] = {
         description="subjects.subject: concepts, no authority; hold acronyms out, "
                     "keep eps tight to avoid conflating distinct topics."),
     "rights": FieldConfig(
-        name="rights", strategy="semantic", eps=0.08, holdout=True, authority=None,
-        cleaner=MINIMAL_CLEANER,
-        description="rightsList.rights: license labels; very tight eps (near-duplicates only)."),
+        name="rights", strategy="controlled", vocab=LICENSES,
+        description="rightsList.rights: a CONTROLLED VOCABULARY (SPDX/CC ids). Deterministic "
+                    "fold + alias resolution -- never clustered (CC-BY-SA vs CC-BY-NC must stay "
+                    "distinct). See fairly.licenses."),
     "geoLocationPlace": FieldConfig(
         name="geoLocationPlace", strategy="geocode",
         description="geoLocations.geoLocationPlace: geocode + group by (country, city) "

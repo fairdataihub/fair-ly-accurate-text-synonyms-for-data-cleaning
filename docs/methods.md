@@ -181,6 +181,45 @@ Notes that matter in practice:
 
 ---
 
+## 6.5 Controlled-vocabulary normalization (licenses, codes)
+
+Some fields are **not** free text with fuzzy synonyms — they are a *controlled
+vocabulary* with a fixed set of canonical ids and many surface spellings: license
+ids (SPDX / Creative Commons), country codes, units, resource types. For these,
+embedding clustering is the **wrong** tool: two canonical ids can be nearly identical
+strings but semantically opposite — `CC-BY-SA-4.0` (share-alike) vs `CC-BY-NC-4.0`
+(non-commercial) — and an embedding merges them. The V-measure sweep (§8) shows this
+directly: `rights` scores 0.82 under clustering, far below the entity fields.
+
+The right tool is deterministic (`fairly.controlled.ControlledVocabulary`):
+
+1. **Fold** each surface string to a key — strip diacritics, lowercase, drop every
+   non-alphanumeric (`fold_key`): `CC BY 4.0` / `cc-by-4.0` / `CC_BY_4.0` → `ccby40`.
+2. **Resolve** the key against the folded canonical set plus an explicit **alias map**
+   for vernacular / version-less forms (`cc0`→`CC0-1.0`, `cc-by`→`CC-BY-4.0`,
+   `Apache 2.0`→`Apache-2.0`), with an optional region-port strip (`cc-by-3.0-us`→`CC-BY-3.0`).
+
+This never merges two different canonical ids, and resolves arbitrarily messy spellings
+to one id. `fairly.licenses` ships a ready SPDX/CC vocabulary + a `classify()`
+allowed/blocked/unknown policy; the `rights` preset uses it (`strategy="controlled"`).
+
+```python
+from fairly.licenses import LICENSES, classify
+LICENSES.normalize("CC BY 4.0")     # -> "CC-BY-4.0"
+classify("cc-by")                    # -> "allowed"
+classify("CC-BY-NC-ND-4.0")          # -> "blocked"
+
+from fairly import ControlledVocabulary   # roll your own (country codes, units, ...)
+cc = ControlledVocabulary(["US", "GB", "DE"], aliases={"USA": "US", "United States": "US"})
+cc.normalize("u.s.a.")               # -> "US"
+```
+
+> Real-world note: on the posters.science corpus, this exact approach reclassified
+> ~6,100 license values that a plain whitelist match had missed (`CC BY 4.0` never
+> matching the hyphenated `CC-BY-4.0`) — the single highest-impact normalization fix.
+
+---
+
 ## 7. Recommended HDBSCAN settings per use case
 
 `cluster_selection_epsilon` (`eps`) is the main dial: larger = more aggressive
@@ -196,7 +235,7 @@ regime is data *density*, not the sparse gold.
 | **funderName** | 0.07 | yes | ROR | **Homogeneous** — nearly every value is "science funder" boilerplate, so everything is close in embedding space and a loose eps cross-merges different countries' agencies. Needs a **tight** eps *and* ROR split. |
 | **affiliation** | 0.07 | yes | ROR | Many near-identical institution strings; tight eps + holdout + ROR is the strongest guard against cross-institution merges. |
 | **subject / keyword** | 0.10 | yes | — | Concepts, not entities, and no authority to fall back on — keep eps tight so distinct topics don't conflate; rely on holdout for acronyms (`AI`, `ML`). |
-| **rights / license** | 0.08 | yes | — | Near-duplicate labels only (`CC-BY 4.0` vs `CC BY 4.0`); very tight. Consider a controlled-vocabulary map instead of clustering if you have one. |
+| **rights / license** | — | — | — | **Do not cluster.** A controlled vocabulary (§6.5) — `strategy="controlled"` with `fairly.licenses.LICENSES`. Clustering can't keep `CC-BY-SA` and `CC-BY-NC` distinct. |
 | **geoLocationPlace** | — | — | geocode | Do **not** embed places. Geocode + group by `(country, city)`. |
 
 Rules of thumb:
@@ -269,7 +308,8 @@ What this tells us:
   variants pack the embedding space closer together. That density is why
   `funderName` / `affiliation` are kept tight at 0.07 even though the sparse gold
   tolerates far more — and why the cliff is a *ceiling*, not a target.
-- **`rights` is the weak field (0.82).** The embedding cannot cleanly separate
+- **`rights` is the weak field (0.82)** *under clustering* — which is why the `rights`
+  preset does **not** cluster; it uses the controlled vocabulary (§6.5). The embedding cannot cleanly separate
   `CC-BY-SA 4.0` / `CC-BY-NC 4.0` / `CC-BY 3.0` — near-identical strings, different
   licenses. For licenses, prefer a controlled-vocabulary map (SPDX / Creative
   Commons ids) over embedding clustering.

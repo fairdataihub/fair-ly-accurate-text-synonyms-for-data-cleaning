@@ -14,14 +14,17 @@ See ``fairly.presets`` for the built-in DataCite/FAIR field configurations and
 from .config import FieldConfig
 from .synonyms import SynonymMap
 from .pipeline import Normalizer
+from .controlled import ControlledVocabulary, fold_key
 from .presets import PRESETS, get_preset
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 __all__ = [
     "FieldConfig",
     "SynonymMap",
     "Normalizer",
+    "ControlledVocabulary",
+    "fold_key",
     "PRESETS",
     "get_preset",
     "__version__",

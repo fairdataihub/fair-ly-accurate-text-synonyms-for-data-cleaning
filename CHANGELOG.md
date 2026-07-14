@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-14
+
+### Added
+- **Controlled-vocabulary normalization** (`fairly.controlled.ControlledVocabulary`): a
+  deterministic normalizer for fixed-vocabulary fields (license ids, country codes, units,
+  resource types). Folds surface strings (`fold_key`: strip diacritics/case/punctuation) and
+  resolves them against the canonical set + an alias map to a single canonical id — never
+  merging two distinct ids (`CC-BY-SA-4.0` vs `CC-BY-NC-4.0`), which embedding clustering
+  cannot guarantee. New `strategy="controlled"` for `FieldConfig`/`Normalizer`.
+- **`fairly.licenses`**: a ready SPDX/CC license `ControlledVocabulary` + `classify()`
+  (allowed/blocked/unknown) policy. The `rights` preset now uses it instead of clustering.
+- Documented in `docs/methods.md` §6.5. On the posters.science corpus this approach
+  reclassified ~6,100 license values a plain whitelist match had missed.
+
 ## [0.1.1] - 2026-07-10
 
 ### Added
@@ -55,5 +69,6 @@ posters.science corpus.
 - Packaging (`fairly-synonyms`), optional `cluster` / `geo` / `all` extras, MIT
   license, and a test suite (30 tests) covering the pure-logic and clustering paths.
 
+[0.2.0]: https://github.com/fairdataihub/fair-ly-accurate-text-synonyms-for-data-cleaning/releases/tag/v0.2.0
 [0.1.1]: https://github.com/fairdataihub/fair-ly-accurate-text-synonyms-for-data-cleaning/releases/tag/v0.1.1
 [0.1.0]: https://github.com/fairdataihub/fair-ly-accurate-text-synonyms-for-data-cleaning/releases/tag/v0.1.0

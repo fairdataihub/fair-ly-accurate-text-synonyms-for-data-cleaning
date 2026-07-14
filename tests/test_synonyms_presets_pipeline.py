@@ -32,7 +32,7 @@ def test_review_tsv(tmp_path):
 def test_all_presets_valid():
     for name, cfg in PRESETS.items():
         assert isinstance(cfg, FieldConfig)
-        assert cfg.strategy in ("semantic", "geocode")
+        assert cfg.strategy in ("semantic", "geocode", "controlled")
         assert cfg.authority in (None, "ror")
 
 

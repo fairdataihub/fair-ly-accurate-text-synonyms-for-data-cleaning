@@ -15,6 +15,7 @@ failure mode:
 | **Abbreviation holdout** | keep acronyms and `< 4`-char tokens *out* of clustering | `ZHAW → Z`, `LUH → HU` over-merges |
 | **ROR authority split** | split a cluster that spans two real institutions using a local ROR dump | `University of Washington` vs `Washington University` |
 | **Geocoding** | for place fields, geocode and group by `(country, city)` → `"City, Country"` | `Graz` merging into `Vienna` ("city in Austria") |
+| **Controlled vocab** | for fixed-vocabulary fields (licenses, codes), deterministically fold + alias-resolve to a canonical id | `CC-BY-SA` collapsing into `CC-BY-NC` — clustering can't tell them apart |
 
 Quality is measured, not assumed: a **V-measure** harness tunes the clustering
 threshold per field against a small gold set.
@@ -88,7 +89,7 @@ Built-in `FieldConfig` presets for common DataCite/FAIR fields (`fairly presets`
 | `funderName` | semantic | 0.07 | yes | ROR |
 | `affiliation` | semantic | 0.07 | yes | ROR |
 | `subject` | semantic | 0.10 | yes | — |
-| `rights` | semantic | 0.08 | yes | — |
+| `rights` | **controlled** | — | — | SPDX/CC vocab |
 | `geoLocationPlace` | geocode | — | — | — |
 
 These `eps` values are **V-measure validated** against the curated gold sets in

@@ -52,6 +52,11 @@ class Normalizer:
         supplies precomputed embeddings aligned to the cleaned term list."""
         counts = self.clean_counts(raw_counts)
 
+        if self.cfg.strategy == "controlled":
+            smap = self.cfg.vocab.synonym_map(counts)
+            smap.field = self.cfg.name
+            return smap
+
         if self.cfg.strategy == "geocode":
             if resolve is None:
                 raise ValueError("geocode strategy requires a `resolve` function")
