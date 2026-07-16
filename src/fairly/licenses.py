@@ -17,9 +17,10 @@ redistributing derivative works); override it for your own policy.
 """
 from __future__ import annotations
 
+import re
 from typing import Optional
 
-from .controlled import ControlledVocabulary
+from .controlled import ControlledVocabulary, fold_key
 
 # derivatives / redistribution permitted
 ALLOWED = frozenset({
@@ -58,22 +59,81 @@ ALIASES = {
 #: A ControlledVocabulary over all known license ids.
 LICENSES = ControlledVocabulary(list(ALLOWED) + list(BLOCKED), ALIASES)
 
+_CC_URI_RE = re.compile(r"creativecommons\.org/(licenses|publicdomain)/([a-z0-9-]+)(?:/(\d\.\d))?", re.I)
+_CC_VER_RE = re.compile(r"(\d)(\d)")
+
+
+def _cc_from_display(k):
+    """Canonical CC id from a folded spelled-out name, e.g.
+    'creativecommonsattributionnoncommercial40international' -> 'CC-BY-NC-4.0'.
+    Handles the jurisdiction-named forms repositories emit ('... 3.0 Germany')."""
+    if "creativecommons" not in k:
+        return None
+    if "zero" in k:
+        return "CC0-1.0"
+    if "attribution" not in k:
+        return None
+    elems = ["BY"]
+    if "noncommercial" in k:
+        elems.append("NC")
+    if "noderiv" in k:                       # noderiv / noderivs / noderivatives
+        elems.append("ND")
+    if "sharealike" in k:
+        elems.append("SA")
+    m = _CC_VER_RE.search(k)
+    ver = f"{m.group(1)}.{m.group(2)}" if m else "4.0"
+    return "CC-" + "-".join(elems) + "-" + ver
+
+
+def _license_from_uri(uri):
+    """Canonical license id from a creativecommons.org rightsUri, or None. The URI
+    path is the most reliable license signal a DataCite deposit carries (many drop
+    rightsIdentifier and give only a jurisdiction-named display string + URI)."""
+    if not isinstance(uri, str):
+        return None
+    m = _CC_URI_RE.search(uri)
+    if not m:
+        return None
+    kind, code, ver = m.group(1).lower(), m.group(2).lower(), m.group(3) or "4.0"
+    if kind == "publicdomain":
+        return "CC0-1.0" if code in ("zero", "cc0") else "other-pd"
+    elems = [e for e in code.split("-") if e in ("by", "nc", "nd", "sa")]
+    if "by" not in elems:
+        return None
+    return "CC-" + "-".join(e.upper() for e in elems) + "-" + ver
+
+
+def normalize(value) -> Optional[str]:
+    """License-aware normalize: the controlled-vocabulary lookup, then a
+    spelled-out Creative Commons name parser (``Creative Commons Attribution 3.0
+    Germany`` -> ``CC-BY-3.0``)."""
+    canon = LICENSES.normalize(value)
+    if canon is not None:
+        return canon
+    if isinstance(value, str):
+        return _cc_from_display(fold_key(value))
+    return None
+
 
 def classify(value, allowed=ALLOWED, blocked=BLOCKED) -> str:
     """Classify a license value (string or list of strings/dicts) as
     ``'allowed'`` / ``'blocked'`` / ``'unknown'``.
 
     Any single allowed entry wins (dual licensing). ``unknown`` means empty or
-    unresolved -- callers typically treat it as blocked (default-deny).
-    """
+    unresolved -- callers typically treat it as blocked (default-deny). Dict
+    entries are read from ``rightsIdentifier``, then ``rights``, then
+    ``rightsUri`` (a creativecommons.org URL, the most reliable signal)."""
     if not value:
         return "blocked"
     entries = value if isinstance(value, list) else [value]
     has_blocked = False
     for e in entries:
         if isinstance(e, dict):
-            e = e.get("rightsIdentifier") or e.get("rights") or ""
-        canon = LICENSES.normalize(e)
+            canon = (normalize(e.get("rightsIdentifier") or "")
+                     or normalize(e.get("rights") or "")
+                     or _license_from_uri(e.get("rightsUri") or ""))
+        else:
+            canon = normalize(e)
         if canon is None:
             continue
         if canon in allowed:
