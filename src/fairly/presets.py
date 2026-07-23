@@ -58,6 +58,11 @@ PRESETS: Dict[str, FieldConfig] = {
         cleaner=SUBJECT_CLEANER,
         description="subjects.subject: concepts, no authority; hold acronyms out, "
                     "keep eps tight to avoid conflating distinct topics."),
+    "entity": FieldConfig(
+        name="entity", strategy="cooccur", threshold=0.95, cleaner=SUBJECT_CLEANER, lexicon=None,
+        description="scientific NER entities: a TF-IDF document co-occurrence graph (Louvain communities) for "
+                    "COMPLEX terms that embed-clustering under-merges, plus an optional UMLS-style synonym-"
+                    "lexicon merge. Set `lexicon` to a synonym-group pickle path (e.g. UMLS) to fold it in."),
     "rights": FieldConfig(
         name="rights", strategy="controlled", vocab=LICENSES,
         description="rightsList.rights: a CONTROLLED VOCABULARY (SPDX/CC ids). Deterministic "

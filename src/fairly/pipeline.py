@@ -46,7 +46,7 @@ class Normalizer:
         return None
 
     # --- build --------------------------------------------------------------
-    def build(self, raw_counts: Dict[str, int], *, authority=None, resolve=None, emb=None) -> SynonymMap:
+    def build(self, raw_counts: Dict[str, int], *, authority=None, resolve=None, emb=None, docs=None) -> SynonymMap:
         """Build the SynonymMap. ``authority`` is a RorIndex (for ror fields);
         ``resolve`` is a place resolver (for geocode fields); ``emb`` optionally
         supplies precomputed embeddings aligned to the cleaned term list."""
@@ -62,6 +62,15 @@ class Normalizer:
                 raise ValueError("geocode strategy requires a `resolve` function")
             from .authorities.geocode import geocode_synonyms
             return geocode_synonyms(counts, resolve, field=self.cfg.name)
+
+        if self.cfg.strategy == "cooccur":
+            from .cooccur import cooccur_synonyms
+            lex = self.cfg.lexicon
+            if isinstance(lex, str):
+                import pickle
+                lex = pickle.load(open(lex, "rb"))
+            return cooccur_synonyms(counts, docs=docs, threshold=self.cfg.threshold,
+                                    lexicon=lex, field=self.cfg.name)
 
         if emb is None:
             from .embeddings import embed
