@@ -70,7 +70,7 @@ class Normalizer:
                 import pickle
                 lex = pickle.load(open(lex, "rb"))
             return cooccur_synonyms(counts, docs=docs, threshold=self.cfg.threshold,
-                                    lexicon=lex, field=self.cfg.name)
+                                    top_k=self.cfg.top_k, lexicon=lex, field=self.cfg.name)
 
         if emb is None:
             from .embeddings import embed

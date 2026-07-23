@@ -27,23 +27,39 @@ def _term_doc_profiles(terms: Sequence[str], docs: Sequence[str]):
     vec = TfidfVectorizer()
     dtm = normalize(vec.fit_transform(docs), axis=1, norm="l2")        # docs x vocab
     tvec = normalize(vec.transform(list(terms)), axis=1, norm="l2")     # terms x vocab (term as mini-query)
-    return normalize(tvec @ dtm.T, axis=1, norm="l2").tocsr()           # terms x docs, row-normalized
+    return normalize(tvec @ dtm.T, axis=1, norm="l2").tocsr().astype(np.float32)  # terms x docs, row-normalized (f32)
 
 
-def _graph_edges(profiles, threshold: float, block: int = 2000):
-    """Upper-triangle (i, j, weight) edges with cosine(profile_i, profile_j) > threshold, computed in
-    row-blocks so the full T x T matrix is never densified (the OOM guard)."""
+def _graph_edges(profiles, threshold: float, block: int = 2000, top_k: int = 0):
+    """(i, j, weight) edges with cosine(profile_i, profile_j) > threshold. Three compression levers, so this
+    scales past the O(N^2) blow-up (the impact-matrix-v2 technique) to a 1-3M-term vocabulary:
+      * row-BLOCKED: at most `block` rows processed at a time.
+      * SPARSE: the block product profiles[s:e] @ profiles.T is kept sparse (only co-occurring pairs are
+        nonzero) and is NEVER densified -- so a block is O(nnz), not O(block*N).
+      * TOP-K per node (when top_k>0): keep only each node's strongest `top_k` neighbours, bounding the graph
+        to O(N*top_k) edges regardless of N (as pub_rank_incremental does for the impact matrix). Set it for a
+        large vocabulary; leave 0 (unbounded) for a small, well-separated set.
+    """
     T = profiles.shape[0]
     edges = []
+    pt = profiles.T.tocsr()
     for s in range(0, T, block):
         e = min(s + block, T)
-        sim = (profiles[s:e] @ profiles.T).toarray()   # (<=block) x T dense block only
+        sb = (profiles[s:e] @ pt).tocsr()            # sparse (<=block) x T; nonzeros = co-occurring pairs only
         for r in range(e - s):
             i = s + r
-            js = np.where(sim[r] > threshold)[0]
-            for j in js:
-                if j > i:
-                    edges.append((i, int(j), float(sim[r, j])))
+            lo, hi = sb.indptr[r], sb.indptr[r + 1]
+            cols = sb.indices[lo:hi]
+            vals = sb.data[lo:hi]
+            m = (vals > threshold) & (cols != i)     # above threshold, no self-edge
+            cols, vals = cols[m], vals[m]
+            if top_k and cols.size > top_k:          # keep only the strongest top_k neighbours
+                keep = np.argpartition(vals, -top_k)[-top_k:]
+                cols, vals = cols[keep], vals[keep]
+            for j, w in zip(cols.tolist(), vals.tolist()):
+                a, b = (i, j) if i < j else (j, i)
+                if a != b:
+                    edges.append((a, b, float(w)))
     return edges
 
 
@@ -128,17 +144,18 @@ def cooccur_synonyms(
     threshold: float = 0.5,
     lexicon: Optional[Sequence[Sequence[str]]] = None,
     block: int = 2000,
+    top_k: int = 0,
     field: Optional[str] = None,
 ) -> SynonymMap:
     """Build a :class:`SynonymMap` from term counts + a document corpus (TF-IDF co-occurrence graph) and/or a
     synonym ``lexicon`` (list of synonym groups). At least one of ``docs``/``lexicon`` must be given. Canonical
-    per cluster = the most frequent member."""
+    per cluster = the most frequent member. ``top_k`` bounds each node's neighbours (0 = unbounded); set it for
+    a large vocabulary so the graph stays O(N*top_k)."""
     terms = list(counts.keys())
-    tindex = {t: i for i, t in enumerate(terms)}
     idx_clusters: List[List[int]] = []
     if docs is not None:
         profiles = _term_doc_profiles(terms, docs)
-        idx_clusters = _louvain(len(terms), _graph_edges(profiles, threshold, block))
+        idx_clusters = _louvain(len(terms), _graph_edges(profiles, threshold, block, top_k))
     term_clusters = [[terms[i] for i in c] for c in idx_clusters]
 
     if lexicon is not None:
