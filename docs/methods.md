@@ -251,6 +251,53 @@ Rules of thumb:
 
 ---
 
+## 7.5 Preflight: can *any* eps work?
+
+`validate` (§8) answers "which eps is least bad". It does not answer the prior
+question: **is there an eps that works at all**, or is this field one where no
+threshold can separate the cases and you need an authority or a controlled
+vocabulary?
+
+That has a closed-form answer and costs one embedding pass. A single distance
+threshold can satisfy a gold set only if every pair that *must merge* is closer
+than every pair that *must not*. With `within` the largest distance inside any
+true group and `between` the smallest distance across two groups, a workable eps
+exists exactly when `within < between`.
+
+```bash
+fairly preflight --gold funder_gold.tsv --preset funderName
+```
+
+```
+preflight for funderName: NOT SEPARABLE. No eps can satisfy this gold set; margin -0.559.
+  The requirements interleave: something that must merge is further apart than
+  something that must not. Tuning eps trades one error for the other. Use an
+  authority (ROR) or a controlled vocabulary for this field.
+  furthest must-merge pair   0.582  'FIC NIH HHS' vs 'Fogarty International Centre'
+  closest must-separate pair 0.023  'National Health and Medical Research Council'
+                                    vs 'National Medical Research Council'
+  574 clusterable terms, 142 groups, 113 of which must merge
+```
+
+That is a real result on 601 funder-name variants. An acronym and its expansion
+for **the same** organisation sit 0.582 apart, while two **different** national
+funders — Australia's NHMRC and Singapore's NMRC — sit 0.023 apart. There is no
+threshold between them, and the two offending pairs are named so you can see it
+rather than infer it.
+
+Without this, the symptom is misleading: a sweep over an inseparable field
+produces a **flat** V-measure curve (identical at every eps from 0.03 to 0.20 in
+the case above), which reads as "this field is robust to eps" when it actually
+means "eps is not the lever here". Run preflight first; if it says NOT SEPARABLE,
+skip the sweep and reach for §4 (ROR) or §6.5 (controlled vocabulary).
+
+Held-out terms (§3) are excluded from the analysis, since a threshold is never
+applied to them. Exit status is `2` when no threshold can work, so CI can gate
+on it. A thin positive margin is flagged too: the window exists but a corpus
+denser than the gold set may close it.
+
+---
+
 ## 8. V-measure validation
 
 Choosing `eps` by eye does not scale. `fairly.validate` turns it into a number.

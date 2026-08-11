@@ -4,6 +4,7 @@ Subcommands::
 
     fairly presets
     fairly build-ror-index --dump ror_v2.json --out ror_index.pickle
+    fairly preflight --gold gold.tsv --preset funderName
     fairly validate --gold gold.tsv --preset affiliation [--eps 0.05,0.1,0.15,...]
     fairly normalize --input records.jsonl --field-path publisher.name \
         --preset publisher --output out.jsonl [--ror-index ror_index.pickle] \
@@ -57,6 +58,29 @@ def _cmd_validate(args) -> int:
     if args.field:
         print(f"\nrecommended for {args.field}: eps={best_eps(rows)['eps']:.2f}")
     return 0
+
+
+def _cmd_preflight(args) -> int:
+    """Can ANY eps satisfy this gold set? Run before spending a sweep on it."""
+    from .embeddings import embed
+    from .holdout import is_holdout
+    from .preflight import analyse, format_report
+    from .validate import load_gold
+
+    cfg = get_preset(args.preset) if args.preset else None
+    gold = load_gold(args.gold)          # {variant: canonical}
+    terms = list(gold.keys())
+    labels = [gold[t] for t in terms]
+    from .embeddings import DEFAULT_MODEL
+    model_name = cfg.embedding_model if (cfg and cfg.embedding_model) else DEFAULT_MODEL
+    emb = embed(terms, model_name, args.cache_dir, show_progress=False)
+    mask = None
+    if cfg is None or cfg.holdout:
+        mask = [is_holdout(t) for t in terms]
+    res = analyse(terms, labels, emb, holdout_mask=mask)
+    print(format_report(res, field=args.field or (args.preset or "")))
+    # Non-zero when no threshold can work, so CI can gate on it.
+    return 0 if res.get("separable") is not False else 2
 
 
 def _cmd_normalize(args) -> int:
@@ -127,6 +151,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--eps", help="comma-separated eps values (default sweep otherwise)")
     p.add_argument("--cache-dir")
     p.set_defaults(func=_cmd_validate)
+
+    p = sub.add_parser("preflight",
+                       help="can ANY eps satisfy this gold set? run before validate")
+    p.add_argument("--gold", required=True)
+    p.add_argument("--preset", help="field preset for embedding/holdout settings")
+    p.add_argument("--field", help="label for the verdict line")
+    p.add_argument("--cache-dir")
+    p.set_defaults(func=_cmd_preflight)
 
     p = sub.add_parser("normalize", help="build + apply a synonym map for a field")
     p.add_argument("--input", required=True)
