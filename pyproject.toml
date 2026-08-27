@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fair-ly-accurate"
-version = "0.3.0"
+version = "0.4.0"
 description = "Fair-ly accurate text synonyms for data cleaning: authority-aware synonym collapsing and normalization of FAIR / DataCite metadata fields."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -33,10 +33,16 @@ cluster = [
 geo = [
   "geopy>=2.3",
 ]
+# Faster/retry-friendly download for `build-ror-index --latest`. Optional: the
+# fetcher falls back to the standard library when requests is absent.
+ror = [
+  "requests>=2.25",
+]
 all = [
   "scikit-learn>=1.3",
   "sentence-transformers>=2.2",
   "geopy>=2.3",
+  "requests>=2.25",
 ]
 dev = [
   "pytest>=7",

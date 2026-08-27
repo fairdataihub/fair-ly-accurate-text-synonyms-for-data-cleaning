@@ -17,7 +17,7 @@ from .pipeline import Normalizer
 from .controlled import ControlledVocabulary, fold_key
 from .presets import PRESETS, get_preset
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "FieldConfig",

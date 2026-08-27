@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-27
+
+### Added
+- **Automated ROR dump download.** `fairly build-ror-index --latest` fetches the
+  newest ROR v2 data dump from Zenodo (community `ror-data`), extracts it, and
+  builds the `.pickle` index in one step — no manual download. Caches the dump in
+  `--cache-dir` (default `.ror_cache/`); `--force` re-downloads.
+- `fairly normalize --ror-latest` auto-builds the ROR index on the fly for presets
+  that use ROR splitting, so no prebuilt `--ror-index` is required.
+- Python API: `RorIndex.from_latest()` and `fairly.authorities.ror.fetch_latest_ror_dump()`.
+- New optional extra `[ror]` (pulls in `requests` for a faster/retry-friendly
+  download); the fetcher falls back to the standard library when it is absent.
+
 ## [0.3.0] - 2026-08-27
 
 ### Changed

@@ -21,6 +21,9 @@ from .io import collect_counts, map_values, read_records, write_records
 from .pipeline import Normalizer
 from .presets import PRESETS, get_preset
 
+# Kept local so `fairly` CLI startup stays light (authorities.ror pulls in numpy).
+DEFAULT_ROR_CACHE = ".ror_cache"
+
 
 def _cmd_presets(_args) -> int:
     for name, cfg in sorted(PRESETS.items()):
@@ -33,8 +36,16 @@ def _cmd_presets(_args) -> int:
 
 
 def _cmd_build_ror(args) -> int:
-    from .authorities.ror import build_ror_index
-    idx = build_ror_index(args.dump)
+    from .authorities.ror import build_ror_index, fetch_latest_ror_dump
+    if args.latest:
+        dump = fetch_latest_ror_dump(cache_dir=args.cache_dir, force=args.force)
+    elif args.dump:
+        dump = args.dump
+    else:
+        print("error: give --dump PATH or --latest (auto-download newest from Zenodo)",
+              file=sys.stderr)
+        return 2
+    idx = build_ror_index(dump)
     idx.save(args.out)
     print(f"ROR index: {len(idx)} names -> {args.out}")
     return 0
@@ -71,12 +82,15 @@ def _cmd_normalize(args) -> int:
 
     build_kw = {}
     if cfg.authority == "ror":
-        if not args.ror_index:
-            print("note: preset uses ROR splitting but --ror-index not given; "
-                  "clusters will not be authority-split.", file=sys.stderr)
-        else:
+        if args.ror_index:
             from .authorities.ror import RorIndex
             build_kw["authority"] = RorIndex.load(args.ror_index)
+        elif args.ror_latest:
+            from .authorities.ror import RorIndex
+            build_kw["authority"] = RorIndex.from_latest(cache_dir=args.ror_cache_dir)
+        else:
+            print("note: preset uses ROR splitting but neither --ror-index nor --ror-latest "
+                  "given; clusters will not be authority-split.", file=sys.stderr)
     if cfg.strategy == "geocode":
         from .authorities.geocode import nominatim_resolver
         build_kw["resolve"] = nominatim_resolver(cache_path=args.geo_cache)
@@ -115,8 +129,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("presets", help="list field presets").set_defaults(func=_cmd_presets)
 
-    p = sub.add_parser("build-ror-index", help="build a ROR index from a ROR v2 dump")
-    p.add_argument("--dump", required=True)
+    p = sub.add_parser("build-ror-index",
+                       help="build a ROR index from a ROR v2 dump (local file or auto-downloaded)")
+    p.add_argument("--dump", help="path to a local ROR v2 JSON dump")
+    p.add_argument("--latest", action="store_true",
+                   help="auto-download the newest ROR v2 dump from Zenodo instead of --dump")
+    p.add_argument("--cache-dir", default=DEFAULT_ROR_CACHE,
+                   help=f"where --latest caches the downloaded dump (default {DEFAULT_ROR_CACHE})")
+    p.add_argument("--force", action="store_true", help="re-download even if a cached dump exists")
     p.add_argument("--out", required=True)
     p.set_defaults(func=_cmd_build_ror)
 
@@ -134,7 +154,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="e.g. publisher.name, fundingReferences[].funderName, creators[].affiliation[].name")
     p.add_argument("--preset", required=True, choices=sorted(PRESETS))
     p.add_argument("--output")
-    p.add_argument("--ror-index")
+    p.add_argument("--ror-index", help="prebuilt ROR index pickle (see build-ror-index)")
+    p.add_argument("--ror-latest", action="store_true",
+                   help="auto-download + build the newest ROR index on the fly (no --ror-index needed)")
+    p.add_argument("--ror-cache-dir", default=DEFAULT_ROR_CACHE,
+                   help=f"cache dir for --ror-latest (default {DEFAULT_ROR_CACHE})")
     p.add_argument("--map-out")
     p.add_argument("--review")
     p.add_argument("--cache-dir")

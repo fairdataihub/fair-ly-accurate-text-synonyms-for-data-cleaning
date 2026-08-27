@@ -28,6 +28,7 @@ threshold per field against a small gold set.
 pip install fair-ly-accurate                 # core (cleaners, ROR index, I/O, V-measure math)
 pip install "fair-ly-accurate[cluster]"      # + embeddings & HDBSCAN (semantic clustering)
 pip install "fair-ly-accurate[geo]"          # + geopy (place geocoding)
+pip install "fair-ly-accurate[ror]"          # + requests (faster ROR dump auto-download)
 pip install "fair-ly-accurate[all]"          # everything
 ```
 
@@ -39,7 +40,10 @@ ROR index and field-path I/O install light.
 ## Quickstart (CLI)
 
 ```bash
-# 0. (once, for institution fields) build a ROR index from a ROR v2 dump
+# 0. (once, for institution fields) build a ROR index.
+#    --latest auto-downloads the newest ROR v2 dump from Zenodo:
+fairly build-ror-index --latest --out ror_index.pickle
+#    ...or point at a dump you already have:
 fairly build-ror-index --dump v2-ror-data.json --out ror_index.pickle
 
 # 1. tune the threshold for a field against a gold set (variant<TAB>true_canonical)

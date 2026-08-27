@@ -11,12 +11,19 @@ display name and GeoNames location for downstream disambiguation.
 from __future__ import annotations
 
 import json
+import os
 import pickle
 import re
+import sys
 import unicodedata
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+# Newest ROR v2 data dump on Zenodo (community ``ror-data``). ROR publishes a
+# fresh dump ~monthly; sorting newest and taking the top record gives the latest.
+LATEST_ROR_RECORDS_API = "https://zenodo.org/api/communities/ror-data/records?sort=newest&size=1"
+DEFAULT_ROR_CACHE = ".ror_cache"
 
 
 def norm(s: str) -> str:
@@ -50,6 +57,131 @@ class RorIndex:
         with open(path, "rb") as fh:
             d = pickle.load(fh)
         return cls(d["name2ror"], d["display"], d["loc"])
+
+    @classmethod
+    def from_latest(cls, cache_dir: str = DEFAULT_ROR_CACHE, force: bool = False) -> "RorIndex":
+        """Download the newest ROR v2 dump from Zenodo and build an index from it."""
+        return build_ror_index(fetch_latest_ror_dump(cache_dir=cache_dir, force=force))
+
+
+def _log(msg: str) -> None:
+    print(msg, file=sys.stderr)
+
+
+def _http_get_json(url: str, timeout: int = 30) -> dict:
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "fair-ly-accurate/ror-fetch"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _download(url: str, dest: str, timeout: int = 120) -> None:
+    """Stream ``url`` to ``dest``. Uses ``requests`` (the ``[ror]`` extra) when
+    available for retries/streaming, else falls back to the stdlib."""
+    def _progress(done: int, total: int) -> None:
+        if total:
+            sys.stderr.write(f"\r  downloading {done / 1e6:6.1f} / {total / 1e6:.1f} MB")
+            sys.stderr.flush()
+
+    tmp = dest + ".part"
+    try:
+        import requests  # type: ignore
+    except ImportError:
+        requests = None
+    if requests is not None:
+        with requests.get(url, stream=True, timeout=timeout) as resp:
+            resp.raise_for_status()
+            total = int(resp.headers.get("Content-Length") or 0)
+            done = 0
+            with open(tmp, "wb") as fh:
+                for chunk in resp.iter_content(chunk_size=1 << 20):
+                    fh.write(chunk)
+                    done += len(chunk)
+                    _progress(done, total)
+    else:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "fair-ly-accurate/ror-fetch"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as fh:
+            total = int(resp.headers.get("Content-Length") or 0)
+            done = 0
+            while True:
+                chunk = resp.read(1 << 20)
+                if not chunk:
+                    break
+                fh.write(chunk)
+                done += len(chunk)
+                _progress(done, total)
+    _log("")
+    os.replace(tmp, dest)
+
+
+def _pick_zip_file(record: dict) -> Tuple[str, str]:
+    """Return ``(filename, download_url)`` for the data-dump zip in a Zenodo record."""
+    files = record.get("files") or []
+    zips = [f for f in files if str(f.get("key", "")).endswith(".zip")]
+    if not zips:
+        raise RuntimeError("no .zip asset found on the latest ROR Zenodo record")
+    f = zips[0]
+    url = (f.get("links") or {}).get("self") or (f.get("links") or {}).get("download")
+    if not url:
+        raise RuntimeError(f"ROR zip {f.get('key')!r} has no download link")
+    return f["key"], url
+
+
+def _extract_v2_json(zip_path: str, out_dir: str) -> str:
+    """Extract the ``*_schema_v2.json`` member from a ROR dump zip; return its path."""
+    import zipfile
+    with zipfile.ZipFile(zip_path) as zf:
+        names = zf.namelist()
+        v2 = [n for n in names if n.endswith("_schema_v2.json")]
+        if not v2:
+            v2 = [n for n in names if "schema_v2" in n and n.endswith(".json")]
+        if not v2:
+            v2 = [n for n in names if n.endswith(".json")]
+        if not v2:
+            raise RuntimeError(f"no JSON member found in {zip_path}")
+        member = v2[0]
+        out_path = os.path.join(out_dir, os.path.basename(member))
+        with zf.open(member) as src, open(out_path, "wb") as dst:
+            dst.write(src.read())
+    return out_path
+
+
+def fetch_latest_ror_dump(cache_dir: str = DEFAULT_ROR_CACHE, url: str = LATEST_ROR_RECORDS_API,
+                          force: bool = False) -> str:
+    """Download the newest ROR v2 JSON dump from Zenodo and return its local path.
+
+    The extracted JSON is cached in ``cache_dir`` (default ``.ror_cache/``); a
+    subsequent call reuses it unless ``force`` is set. Uses ``requests`` when the
+    ``[ror]`` extra is installed, otherwise the standard library.
+    """
+    os.makedirs(cache_dir, exist_ok=True)
+    _log(f"resolving latest ROR dump: {url}")
+    record = (_http_get_json(url).get("hits") or {}).get("hits") or []
+    if not record:
+        raise RuntimeError("Zenodo returned no ROR data records")
+    zip_name, zip_url = _pick_zip_file(record[0])
+
+    # Cache key: the extracted-JSON name derived from the zip's version stem.
+    stem = zip_name[:-4] if zip_name.endswith(".zip") else zip_name
+    cached = os.path.join(cache_dir, stem + "_schema_v2.json")
+    if os.path.exists(cached) and not force:
+        _log(f"using cached ROR dump: {cached}")
+        return cached
+
+    zip_path = os.path.join(cache_dir, zip_name)
+    _log(f"fetching {zip_name}")
+    _download(zip_url, zip_path)
+    out_path = _extract_v2_json(zip_path, cache_dir)
+    try:
+        os.remove(zip_path)  # keep only the (smaller) extracted JSON
+    except OSError:
+        pass
+    # Normalize to the deterministic cache-key name so future runs hit the cache.
+    if os.path.abspath(out_path) != os.path.abspath(cached):
+        os.replace(out_path, cached)
+    _log(f"ROR dump ready: {cached}")
+    return cached
 
 
 def build_ror_index(dump_path: str) -> RorIndex:
