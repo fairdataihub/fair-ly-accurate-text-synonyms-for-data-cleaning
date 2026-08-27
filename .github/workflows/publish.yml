@@ -28,7 +28,7 @@ jobs:
 
       - name: Verify the release tag matches the package version
         run: |
-          pkg_version="$(ls dist/*.tar.gz | sed -E 's#.*/fair_ly-(.*)\.tar\.gz#\1#')"
+          pkg_version="$(ls dist/*.tar.gz | sed -E 's#.*/fair_ly_accurate-(.*)\.tar\.gz#\1#')"
           tag_version="${GITHUB_REF_NAME#v}"
           echo "package=$pkg_version  tag=$tag_version"
           if [ "$pkg_version" != "$tag_version" ]; then
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/fair-ly
+      url: https://pypi.org/p/fair-ly-accurate
     permissions:
       id-token: write        # OIDC token for Trusted Publishing
     steps:

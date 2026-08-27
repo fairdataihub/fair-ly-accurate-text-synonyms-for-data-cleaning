@@ -25,13 +25,13 @@ threshold per field against a small gold set.
 ## Install
 
 ```bash
-pip install fair-ly                 # core (cleaners, ROR index, I/O, V-measure math)
-pip install "fair-ly[cluster]"      # + embeddings & HDBSCAN (semantic clustering)
-pip install "fair-ly[geo]"          # + geopy (place geocoding)
-pip install "fair-ly[all]"          # everything
+pip install fair-ly-accurate                 # core (cleaners, ROR index, I/O, V-measure math)
+pip install "fair-ly-accurate[cluster]"      # + embeddings & HDBSCAN (semantic clustering)
+pip install "fair-ly-accurate[geo]"          # + geopy (place geocoding)
+pip install "fair-ly-accurate[all]"          # everything
 ```
 
-(The distribution installs as `fair-ly`; the import name is `fairly`: `from fairly import Normalizer`.)
+(The distribution installs as `fair-ly-accurate`; the import name is `fairly`: `from fairly import Normalizer`.)
 
 The heavy ML/geo dependencies are optional extras, so the deterministic cleaners,
 ROR index and field-path I/O install light.

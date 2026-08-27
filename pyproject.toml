@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "fair-ly"
+name = "fair-ly-accurate"
 version = "0.2.1"
 description = "Fair-ly accurate text synonyms for data cleaning: authority-aware synonym collapsing and normalization of FAIR / DataCite metadata fields."
 readme = "README.md"

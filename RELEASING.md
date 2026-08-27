@@ -1,4 +1,4 @@
-# Releasing `fair-ly` to PyPI
+# Releasing `fair-ly-accurate` to PyPI
 
 Publishing is automated with **PyPI Trusted Publishing (OIDC)** — GitHub Actions
 mints a short-lived token per run, so there are no API tokens to store or rotate.
@@ -11,13 +11,13 @@ Register this repo as a *trusted publisher* on PyPI. Because the project does no
 exist yet, use the "pending publisher" form:
 
 - **PyPI** — https://pypi.org/manage/account/publishing/ → *Add a pending publisher*
-  - PyPI Project Name: `fair-ly`
+  - PyPI Project Name: `fair-ly-accurate`
   - Owner: `fairdataihub`
   - Repository name: `fair-ly-accurate-text-synonyms-for-data-cleaning`
   - Workflow name: `publish.yml`
   - Environment name: `pypi`
 
-The first successful publish creates the `fair-ly` project owned by the account
+The first successful publish creates the `fair-ly-accurate` project owned by the account
 that registered the pending publisher.
 
 (Optional, recommended) In GitHub → *Settings → Environments*, create an
@@ -42,7 +42,7 @@ access.
    PyPI publish job.
 4. Confirm:
    ```bash
-   pip install fair-ly==X.Y.Z
+   pip install fair-ly-accurate==X.Y.Z
    ```
 
 PyPI refuses to overwrite an existing version, so every release needs a fresh
