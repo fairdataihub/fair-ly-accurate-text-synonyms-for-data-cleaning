@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-27
+
+### Changed
+- **First public PyPI release.** Distribution name is `fair-ly-accurate`
+  (`pip install fair-ly-accurate`); the import name remains `fairly`.
+
+### Added
+- Automated publishing via **PyPI Trusted Publishing (OIDC)** on GitHub Release
+  (`.github/workflows/publish.yml`), a CI workflow running the test suite on
+  Python 3.9/3.12 (`.github/workflows/ci.yml`), and a `RELEASING.md` runbook.
+
+## [0.2.1] - 2026-07-16
+
+### Added
+- Licenses: parse Creative Commons `rightsUri` values and spelled-out CC names.
+
 ## [0.2.0] - 2026-07-14
 
 ### Added
