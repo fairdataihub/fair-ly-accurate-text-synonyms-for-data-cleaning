@@ -58,6 +58,18 @@ PRESETS: Dict[str, FieldConfig] = {
         cleaner=SUBJECT_CLEANER,
         description="subjects.subject: concepts, no authority; hold acronyms out, "
                     "keep eps tight to avoid conflating distinct topics."),
+    "biomarker": FieldConfig(
+        name="biomarker", strategy="semantic", eps=0.08, holdout=True, authority=None,
+        cleaner=SUBJECT_CLEANER,
+        description="biomedical marker names (genes, proteins, metabolites, variants): "
+                    "semantic clustering at eps=0.08, validated on gold/biomarker.tsv "
+                    "(V-measure 0.908, homogeneity 0.950, plateau 0.05-0.20). Keep the "
+                    "holdout: most markers are acronyms and must merge via an authority "
+                    "lexicon (HGNC/BiomarkerKB), never by embedding. Do NOT use cooccur "
+                    "for this field: biomarkers co-occur in panels and pathways precisely "
+                    "because they are different entities, so co-mention is anti-evidence "
+                    "of synonymy (measured: 1,846 wrong cross-merges on an 8,984-poster "
+                    "corpus, e.g. CDK5+CRMP2A+Pin1, NaV1.5+NaV1.8)."),
     "entity": FieldConfig(
         name="entity", strategy="cooccur", threshold=0.95, cleaner=SUBJECT_CLEANER, lexicon=None,
         description="scientific NER entities: a TF-IDF document co-occurrence graph (Louvain communities) for "
