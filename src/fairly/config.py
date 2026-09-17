@@ -30,6 +30,9 @@ class FieldConfig:
     min_cluster_size: int = 2
     min_samples: int = 1
     cluster_method: str = "leaf"
+    threshold: float = 0.5  # cooccur: term-term TF-IDF co-occurrence cosine above which two terms link
+    top_k: int = 0          # cooccur: keep only each node's top_k neighbours (0=unbounded); set for large vocab
+    lexicon: object = None  # cooccur: a list of synonym groups, or a path to a pickle of one (UMLS-style)
     embedding_model: str = DEFAULT_MODEL
     cleaner: object = None  # fairly.cleaners.Cleaner | None
     fallback: Optional[str] = None
@@ -37,7 +40,7 @@ class FieldConfig:
     description: str = ""
 
     def __post_init__(self):
-        if self.strategy not in ("semantic", "geocode", "controlled"):
+        if self.strategy not in ("semantic", "geocode", "controlled", "cooccur"):
             raise ValueError(f"unknown strategy {self.strategy!r}")
         if self.authority not in (None, "ror"):
             raise ValueError(f"unknown authority {self.authority!r}")

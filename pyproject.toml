@@ -23,6 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+graph = ["networkx>=3", "python-louvain>=0.16"]
 # Semantic clustering (embeddings + HDBSCAN). Kept optional so the deterministic
 # cleaners, ROR index and I/O install light.
 cluster = [
