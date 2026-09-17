@@ -64,8 +64,15 @@ def _graph_edges(profiles, threshold: float, block: int = 2000, top_k: int = 0):
 
 
 def _louvain(n: int, edges) -> List[List[int]]:
-    import networkx as nx
-    import community as community_louvain
+    try:
+        import networkx as nx
+        import community as community_louvain
+    except ModuleNotFoundError as exc:
+        raise ImportError(
+            "The cooccur strategy needs the optional graph dependencies "
+            "networkx and python-louvain. Install them with "
+            "pip install 'fairly-synonyms[graph]'."
+        ) from exc
     G = nx.Graph()
     G.add_nodes_from(range(n))
     G.add_weighted_edges_from(edges)

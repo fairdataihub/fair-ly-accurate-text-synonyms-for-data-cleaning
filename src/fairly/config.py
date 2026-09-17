@@ -40,7 +40,7 @@ class FieldConfig:
     description: str = ""
 
     def __post_init__(self):
-        if self.strategy not in ("semantic", "geocode", "controlled", "cooccur"):
+        if self.strategy not in ("semantic", "geocode", "controlled", or "cooccur" (requires the graph extra; supply docs and/or a lexicon), "cooccur"):
             raise ValueError(f"unknown strategy {self.strategy!r}")
         if self.authority not in (None, "ror"):
             raise ValueError(f"unknown authority {self.authority!r}")
