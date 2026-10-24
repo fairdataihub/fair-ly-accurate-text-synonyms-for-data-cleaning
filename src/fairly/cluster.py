@@ -3,12 +3,13 @@
 Given distinct field terms with frequencies and their embeddings, cluster the
 terms with HDBSCAN and map every member of a cluster to a single canonical form
 (the most frequent variant; ties broken by closeness to the cluster centroid).
-Acronyms / short tokens are held out of the clusterer, and an optional authority
-splits clusters that span more than one real entity.
+Acronyms / short tokens are held out of the clusterer, an optional authority
+splits clusters that span more than one real entity, and an optional identity guard
+keeps a variant from mapping to a canonical that names a different entity.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -56,12 +57,19 @@ def synonym_lustre(
     holdout: bool = True,
     min_holdout_len: int = 4,
     authority=None,
+    identity_guard: Optional[Callable[[str, str], bool]] = None,
     field: Optional[str] = None,
 ) -> SynonymMap:
     """Build a :class:`SynonymMap` from term counts + their embeddings.
 
     ``emb`` rows must align with ``list(counts.keys())``. ``authority`` (optional)
     is anything with a ``.split(idxs, phrases, emb)`` method (e.g. RorAuthority).
+    ``identity_guard`` (optional) is a ``(variant, canonical) -> bool`` that is True
+    when the remap would name a different entity (see :mod:`fairly.identity`). A
+    cluster is then emitted in rounds: the remaining members compatible with the most
+    frequent one map to it, and the rest form the next round, so a generic frequent
+    name ("Library") never absorbs a specific one ("Library & Researcher Information
+    Services") while true variants still merge.
     """
     phrases = list(counts.keys())
     if emb.shape[0] != len(phrases):
@@ -76,15 +84,29 @@ def synonym_lustre(
     mapping: Dict[str, str] = {}
     clusters: Dict[str, List[str]] = {}
     n_split = 0
+    n_guarded = 0
 
     def emit(idxs: List[int]) -> None:
-        members = [phrases[i] for i in idxs]
-        rep = members[_centroid_canonical(idxs, phrases, emb, counts)]
-        for m in members:
-            if m != rep:
-                mapping[m] = rep
-        if len(members) > 1:
-            clusters[rep] = sorted(members, key=lambda m: -counts[m])
+        nonlocal n_guarded
+        first = True
+        while idxs:
+            members = [phrases[i] for i in idxs]
+            rep = members[_centroid_canonical(idxs, phrases, emb, counts)]
+            group, rest = [], []
+            for i, m in zip(idxs, members):
+                if m == rep or identity_guard is None or not identity_guard(m, rep):
+                    group.append(i)
+                else:
+                    rest.append(i)
+            for i in group:
+                if phrases[i] != rep:
+                    mapping[phrases[i]] = rep
+            if len(group) > 1:
+                clusters[rep] = sorted((phrases[i] for i in group), key=lambda m: -counts[m])
+            if first:                    # members kept off the cluster's top canonical
+                n_guarded += len(rest)
+                first = False
+            idxs = rest
 
     for lbl in sorted(set(labels.tolist())):
         if lbl < 0:
@@ -100,6 +122,7 @@ def synonym_lustre(
             emit(idxs)
 
     meta = {"eps": eps, "holdout": holdout, "authority": authority is not None,
+            "identity_guard": identity_guard is not None, "n_guarded": n_guarded,
             "n_clusters": len(clusters), "n_authority_splits": n_split,
             "n_terms": len(phrases), "n_held_out": len(phrases) - len(clusterable)}
     return SynonymMap(mapping, clusters, field=field, meta=meta)

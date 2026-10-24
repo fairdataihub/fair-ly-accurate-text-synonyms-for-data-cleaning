@@ -14,6 +14,7 @@ failure mode:
 | **Synonym-lustre** | embed distinct values (`gte-large`) → cluster (HDBSCAN) → map each cluster to its most-frequent member | spelling/format/punctuation variants |
 | **Abbreviation holdout** | keep acronyms and `< 4`-char tokens *out* of clustering | `ZHAW → Z`, `LUH → HU` over-merges |
 | **ROR authority split** | split a cluster that spans two real institutions using a local ROR dump | `University of Washington` vs `Washington University` |
+| **Identity guard** | never map a variant to a canonical that drops or adds an identifying word (place names, address words, stopwords and abbreviations don't count) | `Library & Researcher Information Services → Library`, `Hockaday School → Hotchkiss School` |
 | **Geocoding** | for place fields, geocode and group by `(country, city)` → `"City, Country"` | `Graz` merging into `Vienna` ("city in Austria") |
 | **Controlled vocab** | for fixed-vocabulary fields (licenses, codes), deterministically fold + alias-resolve to a canonical id | `CC-BY-SA` collapsing into `CC-BY-NC` — clustering can't tell them apart |
 

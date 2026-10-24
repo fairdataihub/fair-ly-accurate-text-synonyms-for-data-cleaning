@@ -45,11 +45,23 @@ class Normalizer:
             return authority  # already an Authority-like object
         return None
 
+    def _identity_guard(self, authority, place_words):
+        if not self.cfg.identity_guard:
+            return None
+        from .identity import identity_guard
+        if place_words is None:
+            index = getattr(authority, "index", authority)   # RorAuthority or RorIndex
+            place_words = getattr(index, "place_words", None) or ()
+        return identity_guard(place_words)
+
     # --- build --------------------------------------------------------------
-    def build(self, raw_counts: Dict[str, int], *, authority=None, resolve=None, emb=None) -> SynonymMap:
+    def build(self, raw_counts: Dict[str, int], *, authority=None, resolve=None, emb=None,
+              place_words=None) -> SynonymMap:
         """Build the SynonymMap. ``authority`` is a RorIndex (for ror fields);
         ``resolve`` is a place resolver (for geocode fields); ``emb`` optionally
-        supplies precomputed embeddings aligned to the cleaned term list."""
+        supplies precomputed embeddings aligned to the cleaned term list.
+        ``place_words`` overrides the place words the identity guard ignores (by
+        default the RorIndex's ``place_words``)."""
         counts = self.clean_counts(raw_counts)
 
         if self.cfg.strategy == "controlled":
@@ -73,6 +85,7 @@ class Normalizer:
             method=self.cfg.cluster_method,
             holdout=self.cfg.holdout,
             authority=self._authority(authority),
+            identity_guard=self._identity_guard(authority, place_words),
             field=self.cfg.name,
         )
 

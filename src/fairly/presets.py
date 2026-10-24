@@ -39,17 +39,17 @@ MINIMAL_CLEANER = Cleaner([C.normalize_space, C.require_letter])
 
 PRESETS: Dict[str, FieldConfig] = {
     "publisher": FieldConfig(
-        name="publisher", strategy="semantic", eps=0.30, holdout=True, authority="ror",
+        name="publisher", strategy="semantic", eps=0.30, holdout=True, authority="ror", identity_guard=True,
         cleaner=ORG_CLEANER,
         description="DataCite publisher: diverse (repos, journals, universities); "
                     "moderate eps, ROR split guards org over-merge."),
     "funderName": FieldConfig(
-        name="funderName", strategy="semantic", eps=0.07, holdout=True, authority="ror",
+        name="funderName", strategy="semantic", eps=0.07, holdout=True, authority="ror", identity_guard=True,
         cleaner=ORG_CLEANER,
         description="fundingReferences.funderName: homogeneous 'science funder' language "
                     "prone to cross-country over-merge -- tight eps + ROR split are essential."),
     "affiliation": FieldConfig(
-        name="affiliation", strategy="semantic", eps=0.07, holdout=True, authority="ror",
+        name="affiliation", strategy="semantic", eps=0.07, holdout=True, authority="ror", identity_guard=True,
         cleaner=ORG_CLEANER,
         description="creators/contributors.affiliation: tight eps, holdout + ROR split "
                     "(University of Washington vs Washington University)."),

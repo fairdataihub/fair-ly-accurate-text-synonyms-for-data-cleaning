@@ -18,6 +18,8 @@ class FieldConfig:
                more aggressive merging. Tune with :mod:`fairly.validate`.
     holdout    hold acronyms / short tokens out of clustering (semantic only).
     authority  ``None`` or ``"ror"`` -- split clusters spanning >=2 RORs.
+    identity_guard  never map a variant to a canonical that drops or adds an
+               identifying word (:mod:`fairly.identity`). On for organization fields.
     cleaner    a :class:`fairly.cleaners.Cleaner` run before clustering; values it
                drops are replaced with ``fallback`` (or removed if ``fallback`` is None).
     """
@@ -27,6 +29,7 @@ class FieldConfig:
     eps: float = 0.15
     holdout: bool = True
     authority: Optional[str] = None
+    identity_guard: bool = False
     min_cluster_size: int = 2
     min_samples: int = 1
     cluster_method: str = "leaf"

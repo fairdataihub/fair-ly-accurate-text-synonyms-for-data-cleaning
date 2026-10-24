@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-23
+
+### Fixed
+- **A frequent generic name no longer absorbs specific ones.** The canonical of a
+  cluster is its most frequent variant, so a short, common name took over longer ones
+  that mean something else. In the posters.science affiliation map, about half of the
+  remaps changed which organization was meant: "Library & Researcher Information
+  Services" became "Library", "The Hockaday School" became "The Hotchkiss School", and
+  "Wroclaw University" became "Wroclaw University of Economics and Business".
+
+### Added
+- **Identity guard** (`fairly.identity`). `changes_identity(variant, canonical,
+  place_words)` is True when a remap drops or adds an identifying word. Stopwords,
+  legal suffixes, address words, numbers, single letters, acronyms in parentheses and
+  place names don't count; plurals fold and abbreviations match.
+- `synonym_lustre(..., identity_guard=...)` emits each cluster in rounds: members
+  compatible with the most frequent one map to it, the rest form the next round with
+  their own canonical. `SynonymMap.meta["n_guarded"]` counts members kept off a
+  cluster's top canonical.
+- `FieldConfig.identity_guard`, on in the `publisher`, `funderName` and `affiliation`
+  presets.
+- `RorIndex.place_words`, built from the ROR dump's country, region and city names
+  (city words common in organization names are left out). Older pickled indexes load
+  with an empty set; rebuild them with `fairly build-ror-index` to get place words.
+
 ## [0.4.0] - 2026-08-27
 
 ### Added

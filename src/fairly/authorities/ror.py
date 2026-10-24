@@ -16,7 +16,7 @@ import pickle
 import re
 import sys
 import unicodedata
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -34,13 +34,16 @@ def norm(s: str) -> str:
 
 
 class RorIndex:
-    """A resolved ``name -> ROR id`` lookup plus display names and locations."""
+    """A resolved ``name -> ROR id`` lookup plus display names, locations, and the
+    place words the identity guard ignores (:mod:`fairly.identity`)."""
 
     def __init__(self, name2ror: Dict[str, str], display: Dict[str, str],
-                 loc: Dict[str, Tuple[Optional[str], Optional[str]]]):
+                 loc: Dict[str, Tuple[Optional[str], Optional[str]]],
+                 place_words: Optional[FrozenSet[str]] = None):
         self.name2ror = name2ror
         self.display = display
         self.loc = loc
+        self.place_words = frozenset(place_words or ())
 
     def resolve(self, name: str) -> Optional[str]:
         return self.name2ror.get(norm(name))
@@ -50,13 +53,14 @@ class RorIndex:
 
     def save(self, path: str) -> None:
         with open(path, "wb") as fh:
-            pickle.dump({"name2ror": self.name2ror, "display": self.display, "loc": self.loc}, fh)
+            pickle.dump({"name2ror": self.name2ror, "display": self.display, "loc": self.loc,
+                         "place_words": self.place_words}, fh)
 
     @classmethod
     def load(cls, path: str) -> "RorIndex":
         with open(path, "rb") as fh:
             d = pickle.load(fh)
-        return cls(d["name2ror"], d["display"], d["loc"])
+        return cls(d["name2ror"], d["display"], d["loc"], d.get("place_words"))
 
     @classmethod
     def from_latest(cls, cache_dir: str = DEFAULT_ROR_CACHE, force: bool = False) -> "RorIndex":
@@ -184,19 +188,34 @@ def fetch_latest_ror_dump(cache_dir: str = DEFAULT_ROR_CACHE, url: str = LATEST_
     return cached
 
 
-def build_ror_index(dump_path: str) -> RorIndex:
+def build_ror_index(dump_path: str, max_org_name_freq: int = 300) -> RorIndex:
     """Build a :class:`RorIndex` from a ROR v2 JSON dump.
 
     Names shorter than 3 chars or with no letter are skipped; a name mapping to
-    two different RORs is dropped as ambiguous.
+    two different RORs is dropped as ambiguous. ``place_words`` are every word of
+    a country or region name, plus city words found in fewer than
+    ``max_org_name_freq`` organization names (a town called "University Park" does
+    not make "university" a place word).
     """
+    from ..identity import tokens
     with open(dump_path, encoding="utf-8") as fh:
         orgs = json.load(fh)
     name2ror: Dict[str, str] = {}
     ambiguous = set()
     display: Dict[str, str] = {}
     loc: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    region, city, org_freq = set(), set(), {}
     for org in orgs:
+        seen = set()
+        for n in org.get("names") or []:
+            seen.update(tokens(n.get("value")))
+        for t in seen:
+            org_freq[t] = org_freq.get(t, 0) + 1
+        for lc in org.get("locations") or []:
+            g = lc.get("geonames_details") or {}
+            region.update(tokens(g.get("country_name")))
+            region.update(tokens(g.get("country_subdivision_name")))
+            city.update(tokens(g.get("name")))
         rid = org["id"]
         disp = None
         for n in org.get("names") or []:
@@ -217,7 +236,8 @@ def build_ror_index(dump_path: str) -> RorIndex:
                 name2ror[nn] = rid
     for nn in ambiguous:
         name2ror.pop(nn, None)
-    return RorIndex(name2ror, display, loc)
+    place_words = frozenset(region | {t for t in city if org_freq.get(t, 0) < max_org_name_freq})
+    return RorIndex(name2ror, display, loc, place_words)
 
 
 class RorAuthority:

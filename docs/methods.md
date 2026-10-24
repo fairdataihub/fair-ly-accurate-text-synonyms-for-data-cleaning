@@ -67,6 +67,19 @@ different cities in the same country. The authority is the veto.
    the variant closest to the cluster centroid breaking ties among equally
    frequent ones. Frequency wins because the common surface form is the one users
    recognize; the centroid tie-break keeps the choice stable.
+5. **Guard identity** (organization fields: `publisher`, `funderName`, `affiliation`).
+   A member maps to the canonical only if the remap keeps every identifying word
+   (`fairly.identity.changes_identity`). Members that fail form the next round, which
+   picks its own most frequent canonical, until the cluster is used up. Without this a
+   frequent generic name absorbs specific ones: in a 32k-poster corpus "Library &
+   Researcher Information Services" became "Library", "The Hockaday School" became "The
+   Hotchkiss School", and "Wroclaw University" became "Wroclaw University of Economics
+   and Business", in about half of all affiliation remaps. Words that never identify an
+   organization are ignored: stopwords, legal suffixes, address words, numbers, single
+   letters, acronyms in parentheses, and place names (`RorIndex.place_words`: every
+   country and region word, and city words that are rare in organization names).
+   Plurals fold and abbreviations match ("Univ." and "University", "Dept." and
+   "Department"), and word order is free.
 
 Only real remaps are stored (a term that is its own canonical is absent), so
 applying a map is a cheap dict lookup that leaves unknown values untouched — it is
