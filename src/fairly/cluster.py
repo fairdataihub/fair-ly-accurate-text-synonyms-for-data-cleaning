@@ -25,7 +25,7 @@ def hdbscan_labels(emb: np.ndarray, eps: float, min_cluster_size: int = 2,
     except ImportError as exc:  # pragma: no cover - optional extra
         raise ImportError(
             "Semantic clustering needs the 'cluster' extra: "
-            "pip install fairly-synonyms[cluster]"
+            "pip install fair-ly-accurate[cluster]"
         ) from exc
     return HDBSCAN(
         min_cluster_size=min_cluster_size,
@@ -37,13 +37,21 @@ def hdbscan_labels(emb: np.ndarray, eps: float, min_cluster_size: int = 2,
 
 
 def _centroid_canonical(idxs: Sequence[int], phrases: Sequence[str],
-                        emb: np.ndarray, counts: Dict[str, int]) -> int:
+                        emb: np.ndarray, counts: Dict[str, int],
+                        centroid: Optional[np.ndarray] = None) -> int:
     """Index (within ``idxs``) of the canonical: most frequent variant, with the
-    centroid-closest variant breaking ties among equally-frequent ones."""
-    sub = emb[list(idxs)]
-    dists = np.linalg.norm(sub - sub.mean(axis=0), axis=1)
-    members = [phrases[i] for i in idxs]
-    return max(range(len(idxs)), key=lambda k: (counts[members[k]], -float(dists[k])))
+    centroid-closest variant breaking ties among equally-frequent ones. Distances are
+    computed for the tied variants only; ``centroid`` (default: the mean of ``idxs``)
+    lets a caller that tracks it skip the mean."""
+    freq = [counts[phrases[i]] for i in idxs]
+    top = max(freq)
+    tied = [k for k, f in enumerate(freq) if f == top]
+    if len(tied) == 1:
+        return tied[0]
+    if centroid is None:
+        centroid = emb[list(idxs)].mean(axis=0)
+    dists = np.linalg.norm(emb[[idxs[k] for k in tied]] - centroid, axis=1)
+    return tied[max(range(len(tied)), key=lambda j: -float(dists[j]))]
 
 
 def synonym_lustre(
@@ -86,18 +94,28 @@ def synonym_lustre(
     n_split = 0
     n_guarded = 0
 
+    blocked = getattr(identity_guard, "blocked", None) or (
+        lambda ms, rep: [identity_guard(m, rep) for m in ms])
+
     def emit(idxs: List[int]) -> None:
         nonlocal n_guarded
         first = True
+        total = None                     # running sum of the remaining embeddings
         while idxs:
             members = [phrases[i] for i in idxs]
-            rep = members[_centroid_canonical(idxs, phrases, emb, counts)]
-            group, rest = [], []
-            for i, m in zip(idxs, members):
-                if m == rep or identity_guard is None or not identity_guard(m, rep):
-                    group.append(i)
-                else:
-                    rest.append(i)
+            centroid = None if total is None else total / len(idxs)
+            rep = members[_centroid_canonical(idxs, phrases, emb, counts, centroid)]
+            rest: List[int] = []
+            if identity_guard is None:
+                group = idxs
+            else:
+                flags = blocked(members, rep)
+                group = [i for i, m, b in zip(idxs, members, flags) if not b or m == rep]
+                rest = [i for i, m, b in zip(idxs, members, flags) if b and m != rep]
+            if rest and total is None:
+                total = emb[idxs].sum(axis=0, dtype=np.float64)
+            if rest:
+                total = total - emb[group].sum(axis=0, dtype=np.float64)
             for i in group:
                 if phrases[i] != rep:
                     mapping[phrases[i]] = rep

@@ -16,7 +16,7 @@ import pickle
 import re
 import sys
 import unicodedata
-from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -35,15 +35,18 @@ def norm(s: str) -> str:
 
 class RorIndex:
     """A resolved ``name -> ROR id`` lookup plus display names, locations, and the
-    place words the identity guard ignores (:mod:`fairly.identity`)."""
+    place and generic words of the identity guard (:mod:`fairly.identity`). Pickles
+    from before 0.5.0 load with both word sets empty."""
 
     def __init__(self, name2ror: Dict[str, str], display: Dict[str, str],
                  loc: Dict[str, Tuple[Optional[str], Optional[str]]],
-                 place_words: Optional[FrozenSet[str]] = None):
+                 place_words: Optional[FrozenSet[str]] = None,
+                 generic_words: Optional[FrozenSet[str]] = None):
         self.name2ror = name2ror
         self.display = display
         self.loc = loc
         self.place_words = frozenset(place_words or ())
+        self.generic_words = frozenset(generic_words or ())
 
     def resolve(self, name: str) -> Optional[str]:
         return self.name2ror.get(norm(name))
@@ -54,13 +57,14 @@ class RorIndex:
     def save(self, path: str) -> None:
         with open(path, "wb") as fh:
             pickle.dump({"name2ror": self.name2ror, "display": self.display, "loc": self.loc,
-                         "place_words": self.place_words}, fh)
+                         "place_words": self.place_words, "generic_words": self.generic_words}, fh)
 
     @classmethod
     def load(cls, path: str) -> "RorIndex":
         with open(path, "rb") as fh:
             d = pickle.load(fh)
-        return cls(d["name2ror"], d["display"], d["loc"], d.get("place_words"))
+        return cls(d["name2ror"], d["display"], d["loc"], d.get("place_words"),
+                   d.get("generic_words"))
 
     @classmethod
     def from_latest(cls, cache_dir: str = DEFAULT_ROR_CACHE, force: bool = False) -> "RorIndex":
@@ -188,34 +192,98 @@ def fetch_latest_ror_dump(cache_dir: str = DEFAULT_ROR_CACHE, url: str = LATEST_
     return cached
 
 
-def build_ror_index(dump_path: str, max_org_name_freq: int = 300) -> RorIndex:
+#: Identity-word cutoffs, calibrated on ROR v2.15 (see docs/methods.md). A place
+#: word must be in fewer than ``MAX_PLACE_FREQ`` organization names, and at least
+#: ``MIN_PLACE_SHARE`` of the organizations named with it must be located in a place
+#: of that name ("Antwerp" yes, "Harvard" and "National" no). A country word located
+#: at least ``COUNTRY_PLACE_SHARE`` of the time has no frequency cap ("China",
+#: "Japan", "United States"). A generic word is in at least ``GENERIC_SHARE`` of all
+#: organization names ("University", "Hospital").
+MAX_PLACE_FREQ = 500
+MIN_PLACE_SHARE = 0.3
+COUNTRY_PLACE_SHARE = 0.8
+GENERIC_SHARE = 0.005
+
+
+def identity_words_from_orgs(orgs: Iterable[dict], max_place_freq: int = MAX_PLACE_FREQ,
+                             min_place_share: float = MIN_PLACE_SHARE,
+                             country_place_share: float = COUNTRY_PLACE_SHARE,
+                             generic_share: float = GENERIC_SHARE
+                             ) -> Tuple[FrozenSet[str], FrozenSet[str]]:
+    """``(place_words, generic_words)`` for the identity guard (:mod:`fairly.identity`)
+    from parsed ROR v2 records.
+
+    Place words are the words of each organization's city, region and country names
+    that, where they appear in organization names, mostly name the organization's own
+    location (at least ``min_place_share`` of those organizations are located there:
+    "Antwerp" yes, "Harvard" and "National" no), and that are in fewer than
+    ``max_place_freq`` organization names. A country word located at least
+    ``country_place_share`` of the time has no frequency cap, since country suffixes
+    are common in affiliations ("China", "Japan", "United States"; not "New" or
+    "South"). Word counts skip text in parentheses ("Pfizer (United States)"). Generic
+    words are words found in at least ``generic_share`` of all organization names; a
+    generic word is never a place word, except such a country word.
+    """
+    from ..identity import LEGAL_SUFFIXES, STOPWORDS, ADDRESS_WORDS, tokens
+    named: Dict[str, int] = {}
+    located: Dict[str, int] = {}
+    country, local = set(), set()
+    n_orgs = 0
+    for org in orgs:
+        n_orgs += 1
+        words = set()
+        for n in org.get("names") or []:
+            words.update(tokens(re.sub(r"\([^)]*\)", " ", str(n.get("value") or ""))))
+        here = set()
+        for lc in org.get("locations") or []:
+            g = lc.get("geonames_details") or {}
+            c = tokens(g.get("country_name"))
+            r = tokens(g.get("name")) + tokens(g.get("country_subdivision_name"))
+            country.update(c)
+            local.update(r)
+            here.update(c + r)
+        for t in words:
+            named[t] = named.get(t, 0) + 1
+            if t in here:
+                located[t] = located.get(t, 0) + 1
+    def share(t):
+        return located.get(t, 0) / named[t] if named.get(t) else 1.0
+
+    countries = {t for t in country if share(t) >= country_place_share}
+    place = countries | {t for t in country | local
+                         if share(t) >= min_place_share and named.get(t, 0) < max_place_freq}
+    skip = STOPWORDS | LEGAL_SUFFIXES | ADDRESS_WORDS
+    generic = {t for t, k in named.items()
+               if k >= generic_share * n_orgs and len(t) > 2 and not t.isdigit()
+               and t not in skip and t not in countries}
+    return frozenset(place - generic), frozenset(generic)
+
+
+def identity_words_from_dump(dump_path: str, **kwargs) -> Tuple[FrozenSet[str], FrozenSet[str]]:
+    """``(place_words, generic_words)`` straight from a ROR v2 JSON dump, for
+    :func:`fairly.identity.changes_identity`. Keyword arguments go to
+    :func:`identity_words_from_orgs`."""
+    with open(dump_path, encoding="utf-8") as fh:
+        return identity_words_from_orgs(json.load(fh), **kwargs)
+
+
+def build_ror_index(dump_path: str, max_place_freq: int = MAX_PLACE_FREQ,
+                    min_place_share: float = MIN_PLACE_SHARE,
+                    country_place_share: float = COUNTRY_PLACE_SHARE,
+                    generic_share: float = GENERIC_SHARE) -> RorIndex:
     """Build a :class:`RorIndex` from a ROR v2 JSON dump.
 
     Names shorter than 3 chars or with no letter are skipped; a name mapping to
-    two different RORs is dropped as ambiguous. ``place_words`` are every word of
-    a country or region name, plus city words found in fewer than
-    ``max_org_name_freq`` organization names (a town called "University Park" does
-    not make "university" a place word).
+    two different RORs is dropped as ambiguous. ``place_words`` and
+    ``generic_words`` come from :func:`identity_words_from_orgs`.
     """
-    from ..identity import tokens
     with open(dump_path, encoding="utf-8") as fh:
         orgs = json.load(fh)
     name2ror: Dict[str, str] = {}
     ambiguous = set()
     display: Dict[str, str] = {}
     loc: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
-    region, city, org_freq = set(), set(), {}
     for org in orgs:
-        seen = set()
-        for n in org.get("names") or []:
-            seen.update(tokens(n.get("value")))
-        for t in seen:
-            org_freq[t] = org_freq.get(t, 0) + 1
-        for lc in org.get("locations") or []:
-            g = lc.get("geonames_details") or {}
-            region.update(tokens(g.get("country_name")))
-            region.update(tokens(g.get("country_subdivision_name")))
-            city.update(tokens(g.get("name")))
         rid = org["id"]
         disp = None
         for n in org.get("names") or []:
@@ -236,8 +304,10 @@ def build_ror_index(dump_path: str, max_org_name_freq: int = 300) -> RorIndex:
                 name2ror[nn] = rid
     for nn in ambiguous:
         name2ror.pop(nn, None)
-    place_words = frozenset(region | {t for t in city if org_freq.get(t, 0) < max_org_name_freq})
-    return RorIndex(name2ror, display, loc, place_words)
+    place_words, generic_words = identity_words_from_orgs(
+        orgs, max_place_freq=max_place_freq, min_place_share=min_place_share,
+        country_place_share=country_place_share, generic_share=generic_share)
+    return RorIndex(name2ror, display, loc, place_words, generic_words)
 
 
 class RorAuthority:

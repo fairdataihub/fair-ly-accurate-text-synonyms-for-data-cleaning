@@ -1,7 +1,7 @@
 """Sentence-embedding of distinct field terms, with an on-disk cache.
 
 The embedding model (a SentenceTransformer, default ``Alibaba-NLP/gte-large-en-v1.5``)
-is an *optional* dependency (``pip install fairly-synonyms[cluster]``) and is imported
+is an *optional* dependency (``pip install fair-ly-accurate[cluster]``) and is imported
 lazily, so the rest of the library works without it.
 
 The cache key includes the model id and a cache-version tag as well as the phrase
@@ -54,7 +54,7 @@ def embed(
     except ImportError as exc:  # pragma: no cover - depends on optional extra
         raise ImportError(
             "Semantic clustering needs the 'cluster' extra: "
-            "pip install fairly-synonyms[cluster]"
+            "pip install fair-ly-accurate[cluster]"
         ) from exc
     model = SentenceTransformer(model_name, trust_remote_code=True)
     emb = model.encode(

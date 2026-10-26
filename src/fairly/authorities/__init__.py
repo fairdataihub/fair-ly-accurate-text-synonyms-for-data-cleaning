@@ -8,6 +8,8 @@ a canonical is chosen. This is what keeps *University of Washington* and
 *Washington University* -- lexically almost identical -- from collapsing.
 """
 from .base import Authority
-from .ror import RorIndex, RorAuthority, build_ror_index
+from .ror import (RorIndex, RorAuthority, build_ror_index, identity_words_from_dump,
+                  identity_words_from_orgs)
 
-__all__ = ["Authority", "RorIndex", "RorAuthority", "build_ror_index"]
+__all__ = ["Authority", "RorIndex", "RorAuthority", "build_ror_index",
+           "identity_words_from_dump", "identity_words_from_orgs"]

@@ -14,8 +14,8 @@ failure mode:
 | **Synonym-lustre** | embed distinct values (`gte-large`) → cluster (HDBSCAN) → map each cluster to its most-frequent member | spelling/format/punctuation variants |
 | **Abbreviation holdout** | keep acronyms and `< 4`-char tokens *out* of clustering | `ZHAW → Z`, `LUH → HU` over-merges |
 | **ROR authority split** | split a cluster that spans two real institutions using a local ROR dump | `University of Washington` vs `Washington University` |
-| **Identity guard** | never map a variant to a canonical that drops or adds an identifying word (place names, address words, stopwords and abbreviations don't count) | `Library & Researcher Information Services → Library`, `Hockaday School → Hotchkiss School` |
-| **Geocoding** | for place fields, geocode and group by `(country, city)` → `"City, Country"` | `Graz` merging into `Vienna` ("city in Austria") |
+| **Identity guard** | never map a variant to a canonical that drops or adds an identifying word, swaps a place name or number, or leaves only generic words (stopwords, address words, abbreviations and dropped place names don't count) | `Library & Researcher Information Services -> Library`, `Hockaday School -> Hotchkiss School`, `Ohio State -> Iowa State`, `Columbia University -> University` |
+| **Geocoding** | for place fields, geocode and group by `(country, city)` → `"City, Country"`; a result counts only when it is a place the text names, in any country the text names | `Graz` merging into `Vienna` ("city in Austria"), `CERN` geocoded to Chern, Russia |
 | **Controlled vocab** | for fixed-vocabulary fields (licenses, codes), deterministically fold + alias-resolve to a canonical id | `CC-BY-SA` collapsing into `CC-BY-NC` — clustering can't tell them apart |
 
 Quality is measured, not assumed: a **V-measure** harness tunes the clustering
@@ -84,6 +84,19 @@ smap.write_review("funder_review.tsv", counts)     # review gate
 
 for rec in records:
     map_values(rec, "fundingReferences[].funderName", lambda v: norm.normalize(v, smap))
+```
+
+The identity guard also works on its own, with place and generic words built from a
+ROR dump:
+
+```python
+from fairly.authorities.ror import identity_words_from_dump
+from fairly.identity import changes_identity
+
+place, generic = identity_words_from_dump("v2-ror-data.json")
+changes_identity("Ohio State University", "Iowa State University", place, generic)    # True
+changes_identity("University of Antwerp, Antwerp, Belgium", "University of Antwerp",
+                 place, generic)                                                      # False
 ```
 
 ## Field presets

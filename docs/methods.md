@@ -74,12 +74,47 @@ different cities in the same country. The authority is the veto.
    frequent generic name absorbs specific ones: in a 32k-poster corpus "Library &
    Researcher Information Services" became "Library", "The Hockaday School" became "The
    Hotchkiss School", and "Wroclaw University" became "Wroclaw University of Economics
-   and Business", in about half of all affiliation remaps. Words that never identify an
-   organization are ignored: stopwords, legal suffixes, address words, numbers, single
-   letters, acronyms in parentheses, and place names (`RorIndex.place_words`: every
-   country and region word, and city words that are rare in organization names).
-   Plurals fold and abbreviations match ("Univ." and "University", "Dept." and
-   "Department"), and word order is free.
+   and Business", in about half of all affiliation remaps. The rules:
+   - Stopwords (several languages), legal suffixes, address words and an acronym in
+     parentheses ("(UCLA)") may be dropped or added.
+   - Place words (`RorIndex.place_words`) may be dropped or added but never swapped:
+     "Ohio State University" -> "Iowa State University" is blocked. Numbers and single
+     letters follow the same rule: a street number may go, "Paris 1" -> "Paris 8" is
+     blocked.
+   - Any other word may not be dropped or added.
+   - A name may not reduce to generic words only ("University", "Hospital", "State";
+     `RorIndex.generic_words` plus a built-in list) while the other side has an
+     identifying or place word: "Columbia University" -> "University" is blocked.
+   - Words match after folding spelling variants: ae/oe/ue, -re/-er, plurals, the
+     endings -ical, -ics, -ic, -ine, -al and -y, and generic words across languages
+     ("Universitat" = "University", "Zentrum" = "Center"). Contractions match ("Dept.",
+     "Lab", "Sci."), and so does a prefix abbreviation written with a period ("Inst.")
+     or of at least 4 letters that ends in a consonant, is cut before a vowel and is not
+     a generic word ("Univ", "Calif"). Stopwords, address words and place words never
+     act as abbreviations, so "The" does not stand for "Theoretical". Word order is
+     free.
+
+   **Place and generic words** come from the ROR dump
+   (`fairly.authorities.ror.identity_words_from_dump`). A word of a city, region or
+   country name is a place word when it is in fewer than 500 organization names and at
+   least 30% of the organizations named with it are located in a place of that name.
+   "Antwerp" and "Stockholm" pass; "Harvard", "Emory", "National" and "State" do not. A
+   country word located there at least 80% of the time has no frequency cap ("China",
+   "Japan", "United States"), so country suffixes still merge; "New" and "South" stay
+   identifying. A generic word is in at least 0.5% of all organization names. On ROR
+   v2.15 the old rule (every country and region word, city words in fewer than 300
+   names) let 30.7% of active organizations merge with another one; the new rules let
+   6.1% merge, mostly through a dropped place word ("Antioch University Seattle" ->
+   "Antioch University", which the ROR split covers when both are in ROR) and 1.6% that
+   share an identical name. The cutoffs were picked on that measure and on which words
+   pass: 300 to 1000 names gives 6.0% to 6.2%, 500 keeps "California" and "San" as
+   place words and 1000 lets "South" in; the 30% location share lowers the rate by
+   about 2 points against no share filter.
+
+   Without place words (no ROR index, or a pickle from before 0.5.0) the guard is
+   stricter and place suffixes do not merge; `Normalizer.build` warns. Each phrase is
+   tokenized once and pair results are cached, so a 3,000 member cluster of mutually
+   incompatible names takes seconds.
 
 Only real remaps are stored (a term that is its own canonical is absent), so
 applying a map is a cheap dict lookup that leaves unknown values untouched — it is
@@ -160,6 +195,32 @@ Nominatim by default — 1 req/sec, cached to disk, `swallow_exceptions=True`) a
 `"City, Country"`. Variants of one place collapse; different cities in the same
 country stay apart. Strings that do not resolve to both a city and a country are
 left unmapped.
+
+A geocoder answers every query with its best guess, so `nominatim_resolver` uses an
+answer only when `verify_place` accepts it:
+
+- it is a place (Nominatim class `place` or `boundary`), not a street, building or
+  venue that carries the name ("Conference Location" is a social centre in Russia);
+- one of its names appears in the text as whole words: its own, alternative, official,
+  short or English name, or, when the text also names the country, a name in any language
+  ("Wien" names Vienna; "CERN" does not name Chern, whose Italian name "Čern'" folds to
+  "cern"); administrative wrappers are ignored ("City of Rochester", "Arlington County")
+  and German transliterations match ("Goettingen");
+- a village, suburb or other small place counts only when the text names its country or
+  state ("Mars" alone is not the French village);
+- a text that names no country is ambiguous, and stays as written, when the geocoder's next
+  answers include a place it names in another country ranked within 0.15 importance of the
+  best one ("Cambridge": England or Massachusetts);
+- every country or US state the text names agrees with it ("Venice (Italy)" never
+  becomes a place in Austria; "Georgia" allows both the country and the state; two-
+  letter state codes count only as a comma-separated part, "Ithaca, NY").
+
+The canonical is the verified place's own English name and country ("Milano" ->
+"Milan, Italy"), never the region an address falls back to ("Pisa" -> "Tuscany"); an area
+above a settlement keeps the name the text used ("Padova" -> "Padova, Italy").
+Purely virtual locations ("Online", "Virtual conference", "Zoom") are never geocoded.
+Everything that fails stays as written: a location left unnormalized is safer than one
+moved to the wrong city.
 
 You can inject any `resolve(place) -> {country, cc, city} | None` — a local
 GeoNames dump, a commercial geocoder, or a test stub — instead of Nominatim.

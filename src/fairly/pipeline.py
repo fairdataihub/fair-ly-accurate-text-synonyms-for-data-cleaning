@@ -1,6 +1,7 @@
 """The Normalizer: turn a field's raw value counts into a SynonymMap, and apply it."""
 from __future__ import annotations
 
+import warnings
 from collections import Counter
 from typing import Dict, Optional
 
@@ -45,23 +46,35 @@ class Normalizer:
             return authority  # already an Authority-like object
         return None
 
-    def _identity_guard(self, authority, place_words):
+    def _identity_guard(self, authority, place_words, generic_words):
         if not self.cfg.identity_guard:
+            if place_words is not None or generic_words is not None:
+                warnings.warn(f"field {self.cfg.name!r}: place_words / generic_words are ignored "
+                              "because its identity guard is off", stacklevel=3)
             return None
         from .identity import identity_guard
+        index = getattr(authority, "index", authority)       # RorAuthority or RorIndex
         if place_words is None:
-            index = getattr(authority, "index", authority)   # RorAuthority or RorIndex
             place_words = getattr(index, "place_words", None) or ()
-        return identity_guard(place_words)
+        if generic_words is None:
+            generic_words = getattr(index, "generic_words", None) or ()
+        if not place_words:
+            warnings.warn(
+                f"field {self.cfg.name!r}: the identity guard runs without place words, so it "
+                "is stricter and place suffixes (', Antwerp, Belgium') will not merge. Pass a "
+                "RorIndex built with fairly 0.5.0 or later (fairly build-ror-index, or "
+                "--ror-index / --ror-latest), or place_words= (see "
+                "fairly.authorities.ror.identity_words_from_dump).", stacklevel=3)
+        return identity_guard(place_words, generic_words)
 
     # --- build --------------------------------------------------------------
     def build(self, raw_counts: Dict[str, int], *, authority=None, resolve=None, emb=None,
-              place_words=None) -> SynonymMap:
+              place_words=None, generic_words=None) -> SynonymMap:
         """Build the SynonymMap. ``authority`` is a RorIndex (for ror fields);
         ``resolve`` is a place resolver (for geocode fields); ``emb`` optionally
         supplies precomputed embeddings aligned to the cleaned term list.
-        ``place_words`` overrides the place words the identity guard ignores (by
-        default the RorIndex's ``place_words``)."""
+        ``place_words`` and ``generic_words`` override the identity guard's word sets
+        (by default the RorIndex's ``place_words`` and ``generic_words``)."""
         counts = self.clean_counts(raw_counts)
 
         if self.cfg.strategy == "controlled":
@@ -85,7 +98,7 @@ class Normalizer:
             method=self.cfg.cluster_method,
             holdout=self.cfg.holdout,
             authority=self._authority(authority),
-            identity_guard=self._identity_guard(authority, place_words),
+            identity_guard=self._identity_guard(authority, place_words, generic_words),
             field=self.cfg.name,
         )
 
