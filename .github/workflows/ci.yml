@@ -12,7 +12,8 @@ permissions:
 jobs:
   test:
     name: Test (py${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # ubuntu-latest moved to Ubuntu 26.04 (2026-10-19), which has no Python 3.9
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
