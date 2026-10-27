@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   NY, U.S.A." a road in Sydney, and a place without a city fell back to its region
   ("Pisa, Italy" -> "Tuscany, Italy"). A result now counts only when it is a place (not
   a street, building or venue), one of its names appears in the text, and any country or
-  US state the text names agrees with it; a foreign-language name, or a village or other
+  US state the text names agrees with it (a venue counts as its city when the text names
+  that city too); a foreign-language name, or a village or other
   small place, counts only when the text also names the country. The canonical is the
   place's own English name and country ("Milano" -> "Milan, Italy"), never a containing
   region; an area keeps the name the text used ("Padova" -> "Padova, Italy"). Names match

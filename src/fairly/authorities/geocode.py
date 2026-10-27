@@ -12,7 +12,8 @@ verifiably names the text's place (:func:`verify_place`):
 
 * it is a place (a settlement or an administrative area), not a street, building or
   venue: "Conference Location" is a social centre in Russia, "Ithaca, NY, U.S.A." a road
-  in Sydney;
+  in Sydney; a venue counts as its city when the text names that city too ("SUB
+  Göttingen" -> Göttingen);
 * one of its names appears in the text as whole words: its own, alternative, official or
   English name, or, when the text also names the country, a name in any language ("Wien"
   names Vienna; "CERN" does not name Chern, whose Italian name "Čern'" folds to "cern");
@@ -170,11 +171,31 @@ def verify_place(text: str, raw: Optional[dict], others: Sequence[dict] = ()) ->
     return v
 
 
+_SETTLEMENT_KEYS = ("city", "town", "village", "municipality")
+
+
+def _venue_city(text: str, raw: dict, named) -> Optional[dict]:
+    """A venue answer (a library, university, hotel) whose city the text also names: that
+    city ("SUB Göttingen" -> Göttingen). A road or venue elsewhere ("Ithaca Road" in Sydney
+    for "Ithaca, NY") does not qualify, since the text does not name its city."""
+    addr = raw.get("address") or {}
+    cc, country = str(addr.get("country_code") or "").lower(), addr.get("country")
+    key = next((k for k in _SETTLEMENT_KEYS if addr.get(k)), None)
+    if not (cc and country and key):
+        return None
+    city = addr[key]
+    if _fold(city) not in _fold(text) or (key == "village" and not named):
+        return None
+    if any(cc not in allowed for allowed in named):
+        return None
+    return {"name": city, "country": country, "cc": cc, "canonical": f"{city}, {country}"}
+
+
 def _verify_one(text: str, raw: Optional[dict]) -> Optional[dict]:
     if not raw or is_virtual(text):
         return None
     if str(raw.get("class") or raw.get("category") or "") not in PLACE_CLASSES:
-        return None
+        return _venue_city(text, raw, named_countries(text))
     addr = raw.get("address") or {}
     cc = str(addr.get("country_code") or "").lower()
     country = addr.get("country")
@@ -190,7 +211,8 @@ def _verify_one(text: str, raw: Optional[dict]) -> Optional[dict]:
     if any(cc not in allowed for allowed in named):
         return None
     kind = str(raw.get("addresstype") or raw.get("type") or "")
-    if kind in SMALL_TYPES and not named:
+    own_city = any(_fold(addr.get(k)) == _fold(n) for k in _SETTLEMENT_KEYS if addr.get(k) for n in matched)
+    if kind in SMALL_TYPES and not named and not own_city:   # OSM tags Paris itself a suburb
         return None
     nd = raw.get("namedetails") or {}
     if kind in AREA_TYPES:

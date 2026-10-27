@@ -116,3 +116,15 @@ def test_a_bare_name_shared_by_two_countries_is_ambiguous():
     portland_me = dict(_raw("Portland", cc="us", country="United States"), importance=0.63)
     portland_or = dict(_raw("Portland", cc="us", country="United States"), importance=0.74)
     assert verify_place("Portland", portland_or, [portland_me])["canonical"] == "Portland, United States"
+
+
+def test_a_venue_counts_as_its_city_when_the_text_names_it():
+    sub = {"name": "SUB Göttingen", "class": "amenity", "addresstype": "amenity",
+           "address": {"city": "Göttingen", "country": "Germany", "country_code": "de"}}
+    assert verify_place("SUB Göttingen", sub)["canonical"] == "Göttingen, Germany"
+    road = {"name": "Ithaca Road", "class": "highway", "addresstype": "road",
+            "address": {"city": "Sydney", "country": "Australia", "country_code": "au"}}
+    assert verify_place("Ithaca, NY, U.S.A.", road) is None
+    paris = dict(_raw("Paris", addresstype="suburb", cc="fr", country="France"), importance=0.9)
+    paris["address"]["city"] = "Paris"
+    assert verify_place("Paris", paris)["canonical"] == "Paris, France"
