@@ -86,6 +86,19 @@ for rec in records:
     map_values(rec, "fundingReferences[].funderName", lambda v: norm.normalize(v, smap))
 ```
 
+Text a PDF extraction damaged can be repaired without a model, from the record's own
+repository text or from a vocabulary of typed words (`fairly.repair`):
+
+```python
+from fairly.repair import repair_from_reference, repair_ligatures, word_counts
+
+repair_from_reference("Analise epidemiologica das fraturas de fragilidade",
+                      ["An\u00e1lise epidemiol\u00f3gica das fraturas de fragilidade"])
+# 'Análise epidemiológica das fraturas de fragilidade'
+vocab = word_counts(deposit_titles_and_descriptions)
+repair_ligatures("Federa\ufffdon University", vocab)        # 'Federation University'
+```
+
 The identity guard also works on its own, with place and generic words built from a
 ROR dump:
 

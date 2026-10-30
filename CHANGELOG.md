@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-30
+
+### Added
+- **`fairly.repair`: repairs for text a PDF extraction damaged**, with no model. Found
+  in an audit of the posters.science corpus, where poster text is extracted from PDFs:
+  - `repair_ligatures(text, vocab)`: a font that draws "ti", "tt" or "ft" as one glyph
+    without a Unicode mapping leaves U+FFFD ("es\ufffdma\ufffdon", "Federa\ufffdon
+    University"). Each U+FFFD inside a word is filled with the ligature letters that make
+    a known word, the most frequent in a vocabulary of typed text (`word_counts`), in
+    the case of the word around it. Glyphs in formulas and words split across a line
+    are left alone.
+  - `repair_from_reference(text, references)`: when a reference (the repository record's
+    own title or description) holds the same words, only the damaged words change: lost
+    accents come back ("Analise" -> "Análise"), U+FFFD takes the reference's letters,
+    each in the text's own case; text extracted twice ("VIAS VIAS AEREAS AEREAS") reads
+    once; a whole text with scrambled capitals ("AnalisE EpidemiolÓgica ... SÃo Paulo")
+    takes the reference. Clean text is never restyled after the reference: case,
+    punctuation and spacing differences are left alone ("King's" stays, "healthcare"
+    stays).
+  - `has_word(s)`: a real word in any script, for name checks that must not drop
+    Chinese, Japanese, Cyrillic or Devanagari names ("李, 杰" counts, "M., A" does not).
+
 ## [0.5.0] - 2026-10-26
 
 ### Fixed

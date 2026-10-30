@@ -8,7 +8,8 @@ Public API::
     smap = Normalizer(cfg).build(counts, authority=ror_index)
     clean_value = smap.apply("Univ. of California, Berkeley")
 
-See ``fairly.presets`` for the built-in DataCite/FAIR field configurations and
+See ``fairly.presets`` for the built-in DataCite/FAIR field configurations,
+``fairly.repair`` for repairing text a PDF extraction damaged, and
 ``docs/methods.md`` for the method and recommended settings.
 """
 from .config import FieldConfig
@@ -17,7 +18,7 @@ from .pipeline import Normalizer
 from .controlled import ControlledVocabulary, fold_key
 from .presets import PRESETS, get_preset
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "FieldConfig",

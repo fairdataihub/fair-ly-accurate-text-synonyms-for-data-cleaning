@@ -10,7 +10,7 @@ the [README](../README.md).
 3. [Abbreviation / short-token holdout](#3-abbreviation--short-token-holdout)
 4. [ROR authority split](#4-ror-authority-split)
 5. [Geocoding for place fields](#5-geocoding-for-place-fields)
-6. [Deterministic cleaners](#6-deterministic-cleaners)
+6. [Deterministic cleaners](#6-deterministic-cleaners) (6.6: repairing extraction damage)
 7. [Recommended HDBSCAN settings per use case](#7-recommended-hdbscan-settings-per-use-case)
 8. [V-measure validation](#8-v-measure-validation)
 9. [Field-path I/O](#9-field-path-io)
@@ -252,6 +252,40 @@ Notes that matter in practice:
 - **Abbreviation-safe.** There is no "looks like a sentence because it has a
   period" rule — that wrongly killed `U.S. Environmental Protection Agency`. Use a
   word-count cap (`max_words`) only for known-noisy LLM output.
+
+## 6.6 Repairing extraction damage (`fairly.repair`)
+
+Values extracted from PDFs carry damage no cleaner can see as junk, because the text is
+real. Three kinds are repaired, each without a model and each changing only the
+damaged words:
+
+- **Undecodable ligatures.** A font that draws "ti", "tt" or "ft" as one glyph with no
+  Unicode mapping leaves U+FFFD. `repair_ligatures` fills each U+FFFD inside a word with
+  the ligature letters (ti, tt, ft, fi, fl, ff, ffi, ffl, st, tf, th) that make a word of
+  a vocabulary, the most frequent one, in the case of the surrounding letters. Build the
+  vocabulary with `word_counts` from text people typed (repository titles, descriptions,
+  keywords, authority names), never from the damaged extraction. A glyph at the end of a
+  word can be a word split across a line ("Ins\ufffd tu\ufffd on"), so it is filled only
+  when that makes a known word of six or more letters or a very common one ("multi" in
+  "multi-band"); a two-letter stem only when it makes a very common word ("soft"),
+  and a lone glyph (in a formula) is left alone.
+- **Lost accents, scrambled capitals, doubled text.** `repair_from_reference` aligns the
+  text's words with a reference that holds the same words in the same order, ignoring
+  case and accents (U+FFFD stands for 1-3 letters). Only a word that lost accents or
+  holds U+FFFD takes the reference's letters, in the text's own case; punctuation,
+  spacing and every other word stay as extracted, so "King's College London" is not
+  rewritten to a reference's "King’s", nor "healthcare" to "health care". A text that
+  matches the whole reference and has scrambled capitals in two or more words
+  ("AnalisE EpidemiolÓgica") takes the reference as it is. Bold type drawn twice
+  ("VIAS VIAS AEREAS AEREAS") is read once first (`undouble`). An ambiguous match (the
+  words occur twice in the reference) changes nothing.
+- **Names in any script.** `has_word` accepts a token of two or more letters in any
+  script, or two Han/Kana/Hangul characters, so a check meant to drop bare initials
+  ("M., A") does not drop "李, 杰" or "Попова".
+
+In the posters.science corpus (32,646 records) these repairs restored accents in
+titles, subjects, publishers and affiliations from the deposit's own text and filled
+undecodable ligatures in titles, captions and poster text.
 
 ---
 
