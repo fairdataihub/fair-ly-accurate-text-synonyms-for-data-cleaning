@@ -1,5 +1,5 @@
 from fairly import cleaners as C
-from fairly.presets import MINIMAL_CLEANER, ORG_CLEANER, SUBJECT_CLEANER
+from fairly.presets import MINIMAL_CLEANER, ORG_CLEANER, SUBJECT_CLEANER, TERM_CLEANER
 
 
 def test_org_keeps_real_entities():
@@ -36,6 +36,24 @@ def test_subject_cleaner_is_light():
     assert SUBJECT_CLEANER.clean("Machine Learning") == "Machine Learning"
     assert SUBJECT_CLEANER.clean("AI") == "AI"          # short concept kept
     assert SUBJECT_CLEANER.clean("n/a") is None
+
+
+def test_fold_possessive():
+    assert C.fold_possessive("Alzheimer's disease") == "Alzheimer disease"
+    assert C.fold_possessive("Crohn’s disease") == "Crohn disease"
+    assert C.fold_possessive("alzheimer ' s disease") == "alzheimer disease"     # tokenized form
+    assert C.fold_possessive("Fisher's exact test") == "Fisher exact test"
+    assert C.fold_possessive("5'-UTR of the 3' end") == "5'-UTR of the 3' end"   # prime notation kept
+    assert C.fold_possessive("Parkinson's") == "Parkinson"
+    assert C.fold_possessive("Graves' disease") == "Graves disease"
+    assert C.fold_possessive("graves ' disease") == "graves disease"              # tokenized form
+    assert C.fold_possessive("Hodgkin's and Graves' disease") == "Hodgkin and Graves disease"
+    assert C.fold_possessive("the 'cells' marker") == "the 'cells' marker"        # a quoted word
+
+
+def test_term_cleaner_folds_but_org_cleaner_keeps_possessives():
+    assert TERM_CLEANER.clean("Alzheimer's disease") == "Alzheimer disease"
+    assert ORG_CLEANER.clean("King's College London") == "King's College London"
 
 
 def test_minimal_cleaner():

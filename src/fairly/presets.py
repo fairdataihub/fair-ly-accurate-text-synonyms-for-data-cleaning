@@ -31,6 +31,13 @@ SUBJECT_CLEANER = Cleaner([
     C.normalize_space, C.require_min_len(2), C.require_letter, C.drop_placeholder,
 ])
 
+#: Scientific terms (NER entities, MeSH-like keywords): the subject cleaner plus the
+#: possessive fold, so "Alzheimer's disease" and "Alzheimer disease" are one value
+#: before any embedding. Not for organization names ("King's College London").
+TERM_CLEANER = Cleaner([
+    C.normalize_space, C.fold_possessive, C.require_min_len(2), C.require_letter, C.drop_placeholder,
+])
+
 #: Minimal: normalize whitespace + require a letter.
 MINIMAL_CLEANER = Cleaner([C.normalize_space, C.require_letter])
 
