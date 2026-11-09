@@ -7,7 +7,7 @@ the [README](../README.md).
 ## Contents
 1. [Architecture](#1-architecture)
 2. [The synonym-lustre method](#2-the-synonym-lustre-method)
-3. [Abbreviation / short-token holdout](#3-abbreviation--short-token-holdout)
+3. [Abbreviation / short-token holdout](#3-abbreviation--short-token-holdout) (3.1: resolving acronyms from their definitions)
 4. [ROR authority split](#4-ror-authority-split)
 5. [Geocoding for place fields](#5-geocoding-for-place-fields)
 6. [Deterministic cleaners](#6-deterministic-cleaners) (6.6: repairing extraction damage)
@@ -159,6 +159,50 @@ threshold is configurable (`is_holdout(term, min_len=4)`).
 
 ---
 
+### 3.1 Resolving acronyms from their definitions (`fairly.acronyms`)
+
+The holdout is right to keep `BTK` away from the embedding, but it leaves `BTK` and
+`Bruton tyrosine kinase` as two values. In scientific text the resolution is usually
+written down: authors define an acronym on first use, "Bruton tyrosine kinase (BTK)".
+`definitions(text)` finds those with the Schwartz & Hearst (2003) algorithm: the long
+form is the shortest run of words before the parenthesis whose letters match the short
+form from right to left, with the first letter at the start of a word.
+`count_definitions(texts)` counts, per (short form, long form), the texts that define it.
+
+Most acronyms have more than one meaning somewhere in a large corpus. In PubMed titles
+and abstracts (lower-cased) the definition pass finds 7,393,049 distinct (short form,
+long form) pairs, 845,414 of them defined in at least three records, and a short form
+often carries several. Shares below are of all of an acronym's definitions, with the
+spellings of one meaning grouped as in step 1:
+
+- `AMP`: adenosine monophosphate 43% (21 spellings), antimicrobial peptide 23%,
+  ampicillin 9%;
+- `EGFR`: epidermal growth factor receptor 55%, estimated glomerular filtration rate 35%;
+- `DOX`: doxorubicin 88%, doxycycline 7%.
+
+Mapping every definition chains such meanings together (in a first run, ampicillin,
+amphetamine and amplitude ended up in one group through `AMP`). `acronym_map` therefore
+maps an acronym only when one meaning dominates:
+
+1. The long forms are grouped first, so spellings of one meaning count together: a long
+   form joins the first more frequent one that the identity guard (§2) lets it map to.
+   Case, punctuation, plurals and possessives fold this way ("Bruton's / Bruton /
+   Brutons tyrosine kinase"); British and American spellings do not ("leukaemia",
+   "leukemia"), and the semantic pass merges those.
+2. The largest group needs `min_share` (0.6) of the acronym's definitions, so `DOX`
+   resolves to doxorubicin and `AMP` and `EGFR` stay as written.
+3. With `counts` (the field's value frequencies), the acronym's definitions must cover
+   `min_coverage` (0.1) of its occurrences as a value. In a field whose case was lost, a
+   word that is also an acronym (a lower-cased "fish" next to FISH, the hybridization
+   assay) is mostly the word, and stays unmapped.
+4. `identity_of` can name an authority id per term (a MeSH descriptor, a ROR id); no
+   mapping joins two different ids.
+
+The acronym and the dominant group's other spellings map to its most frequent long form;
+`SynonymMap.meta` counts the acronyms left out as ambiguous, uncovered or conflicting.
+Apply the acronym map before the semantic map, so the long form it produces is merged
+with its other variants.
+
 ## 4. ROR authority split
 
 For organization fields (`affiliation`, `funderName`, org `publisher`s), an
@@ -241,6 +285,13 @@ source repository). Compose them with `Cleaner([...])`; three presets ship:
 - **`SUBJECT_CLEANER`** (keywords/subjects): light — keep short concepts (`AI`),
   drop only placeholders and letterless values.
 - **`MINIMAL_CLEANER`** (rights/licenses): normalize whitespace, require a letter.
+- **`TERM_CLEANER`** (scientific terms, NER entities): the subject cleaner plus
+  `fold_possessive`, which drops the possessive 's the way MeSH names eponymous terms
+  ("Alzheimer's disease" -> "Alzheimer disease", "Fisher's exact test" -> "Fisher exact
+  test"). It also folds the form a tokenizer leaves ("alzheimer ' s disease"); in an NER
+  vocabulary over PubMed abstracts 133,392 entity forms had that shape, and a rule against
+  one-letter words dropped every one of them. Prime notation ("5'-UTR") is kept. Not for
+  organization names ("King's College London").
 
 Notes that matter in practice:
 

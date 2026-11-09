@@ -117,6 +117,19 @@ def drop_citation(s: str) -> Optional[str]:
     return None if _CITATION_RE.search(s) else s
 
 
+_POSSESSIVE_RE = re.compile(r"([A-Za-z]) ?['’] ?s\b")
+
+
+def fold_possessive(s: str) -> Optional[str]:
+    """Drop the possessive 's of a word, the way MeSH names eponymous terms:
+    ``Alzheimer's disease`` -> ``Alzheimer disease``, ``Crohn’s`` -> ``Crohn``. Also
+    folds the form a tokenizer leaves behind (``alzheimer ' s disease``), which a
+    rule against one-letter words would otherwise drop whole. Only an apostrophe
+    after a letter counts, so prime notation (``5'-UTR``, ``3' end``) is kept. For
+    term and keyword fields, not organization names (``King's College London``)."""
+    return re.sub(r"\s+", " ", _POSSESSIVE_RE.sub(r"\1", s)).strip()
+
+
 def max_words(limit: int = 15) -> Callable[[str], Optional[str]]:
     """Drop values longer than ``limit`` words (a sentence / multi-entity list,
     not a single name). Skip this for fields with legitimately long names."""

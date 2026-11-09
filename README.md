@@ -17,6 +17,7 @@ failure mode:
 | **Identity guard** | never map a variant to a canonical that drops or adds an identifying word, swaps a place name or number, or leaves only generic words (stopwords, address words, abbreviations and dropped place names don't count) | `Library & Researcher Information Services -> Library`, `Hockaday School -> Hotchkiss School`, `Ohio State -> Iowa State`, `Columbia University -> University` |
 | **Geocoding** | for place fields, geocode and group by `(country, city)` → `"City, Country"`; a result counts only when it is a place the text names, in any country the text names | `Graz` merging into `Vienna` ("city in Austria"), `CERN` geocoded to Chern, Russia |
 | **Controlled vocab** | for fixed-vocabulary fields (licenses, codes), deterministically fold + alias-resolve to a canonical id | `CC-BY-SA` collapsing into `CC-BY-NC` — clustering can't tell them apart |
+| **Acronym resolution** | read the definitions authors write ("Bruton tyrosine kinase (BTK)") out of the corpus's own text and map an acronym to its long form only when one meaning dominates | `BTK` and its expansion staying two values; `AMP` mapped to one of its several meanings |
 
 Quality is measured, not assumed: a **V-measure** harness tunes the clustering
 threshold per field against a small gold set.
@@ -98,6 +99,23 @@ repair_from_reference("Analise epidemiologica das fraturas de fragilidade",
 vocab = word_counts(deposit_titles_and_descriptions)
 repair_ligatures("Federa\ufffdon University", vocab)        # 'Federation University'
 ```
+
+Held-out acronyms can be resolved from the corpus itself (`fairly.acronyms`): authors
+define an acronym the first time they use it, so titles, abstracts or descriptions are
+their own acronym lexicon. An acronym with more than one common meaning is left alone:
+
+```python
+from fairly.acronyms import count_definitions, acronym_map
+from fairly.presets import TERM_CLEANER
+
+defs = count_definitions(abstracts)        # Counter{("BTK", "Bruton tyrosine kinase"): 812, ...}
+amap = acronym_map(defs, counts=counts, clean=TERM_CLEANER)
+amap.apply("BTK")                          # 'Bruton tyrosine kinase'
+```
+
+`TERM_CLEANER` is the subject cleaner plus `fold_possessive`, which turns
+"Alzheimer's disease" into "Alzheimer disease" (MeSH's form) before anything is
+embedded. Keep it off organization names: "King's College London" is a name.
 
 The identity guard also works on its own, with place and generic words built from a
 ROR dump:

@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`fairly.acronyms`: acronyms resolved from the corpus's own definitions.** The
+  holdout keeps acronyms out of the embedding and so left `BTK` and "Bruton tyrosine
+  kinase" as two values. `definitions(text)` reads "long form (SF)" definitions
+  (Schwartz & Hearst, 2003) and `count_definitions(texts)` counts the texts defining each
+  pair. `acronym_map(defs, counts=...)` groups each acronym's long forms with the
+  identity guard (case, punctuation, plurals, possessives) and returns a `SynonymMap`
+  that maps the acronym only when one meaning holds `min_share` (0.6) of them. With
+  `counts`, the definitions must also cover `min_coverage` (0.1) of the acronym's
+  occurrences, and `identity_of` blocks a mapping across two authority ids. In PubMed
+  this leaves `AMP` (43% adenosine monophosphate) and `EGFR` (55% EGF receptor, 35%
+  estimated GFR) unmapped and resolves `DOX` (88% doxorubicin).
+- **`fold_possessive` cleaner step and `TERM_CLEANER`** for scientific terms:
+  "Alzheimer's disease" -> "Alzheimer disease", also from the tokenized form "alzheimer '
+  s disease", which a rule against one-letter words otherwise drops whole. Prime notation
+  ("5'-UTR") is kept. Not part of `ORG_CLEANER` ("King's College London").
+
 ## [0.6.0] - 2026-10-30
 
 ### Added
