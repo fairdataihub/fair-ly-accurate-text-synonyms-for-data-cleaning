@@ -71,3 +71,35 @@ def test_clean_folds_possessives_first():
                     ("AD", "atopic dermatitis"): 25})
     amap = acronym_map(defs, clean=TERM_CLEANER)
     assert amap.apply("AD") == "Alzheimer disease"
+
+
+def test_authority_ids_split_groups_before_the_share():
+    # two guard-compatible spellings that an authority says are different things
+    defs = Counter({("ACE", "angiotensin converting enzyme"): 40, ("ACE", "angiotensin-converting enzymes"): 35,
+                    ("ACE", "acetylcholinesterase"): 25})
+    ids = {"angiotensin converting enzyme": "D1", "angiotensin-converting enzymes": "D2"}.get
+    amap = acronym_map(defs, identity_of=ids)      # 40% and 35%: neither dominates once split
+    assert "ACE" not in amap and amap.meta["n_ambiguous"] == 1
+    assert acronym_map(defs).apply("ACE") == "angiotensin converting enzyme"     # 75% as one group
+
+
+def test_counts_keys_match_ignoring_case():
+    defs = Counter({("BTK", "Bruton tyrosine kinase"): 50})
+    amap = acronym_map(defs, counts={"btk": 120, "Bruton tyrosine kinase": 300})
+    assert amap.apply("btk") == "Bruton tyrosine kinase"
+    assert acronym_map(defs, counts={"btk": 1000}).meta["n_uncovered"] == 1        # 50 < 10% of 1000
+
+
+def test_rare_definitions_still_count_toward_the_share():
+    defs = Counter({("XY", "alpha one"): 5, ("XY", "beta two"): 2, ("XY", "gamma three"): 2})
+    assert "XY" not in acronym_map(defs)                  # 5 of 9 < 60%, the rare meanings count
+    defs = Counter({("BTK", "Bruton tyrosine kinase"): 2, ("BTK", "Bruton's tyrosine kinase"): 2})
+    assert acronym_map(defs).apply("BTK") == "Bruton tyrosine kinase"   # 4 texts as one group >= min_texts
+    assert acronym_map(Counter({("XQ", "x-ray quantum"): 2})).meta["n_rare"] == 1
+
+
+def test_review_clusters_merge_acronyms_with_one_long_form():
+    defs = Counter({("BTK", "Bruton tyrosine kinase"): 50, ("BTKI", "Bruton tyrosine kinase"): 20})
+    amap = acronym_map(defs)
+    assert amap.apply("BTKI") == amap.apply("BTK") == "Bruton tyrosine kinase"
+    assert set(amap.clusters["Bruton tyrosine kinase"]) == {"Bruton tyrosine kinase", "BTK", "BTKI"}

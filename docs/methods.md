@@ -188,11 +188,14 @@ maps an acronym only when one meaning dominates:
    form joins the first more frequent one that the identity guard (§2) lets it map to.
    Case, punctuation, plurals and possessives fold this way ("Bruton's / Bruton /
    Brutons tyrosine kinase"); British and American spellings do not ("leukaemia",
-   "leukemia"), and the semantic pass merges those.
+   "leukemia"), and the semantic pass merges those. Two long forms with different
+   `identity_of` ids (step 4) never share a group.
 2. The largest group needs `min_share` (0.6) of the acronym's definitions, so `DOX`
-   resolves to doxorubicin and `AMP` and `EGFR` stay as written.
-3. With `counts` (the field's value frequencies), the acronym's definitions must cover
-   `min_coverage` (0.1) of its occurrences as a value. In a field whose case was lost, a
+   resolves to doxorubicin and `AMP` and `EGFR` stay as written. It also needs
+   `min_texts` (3) texts; rarer definitions still count toward the share.
+3. With `counts` (the field's value frequencies), the acronym is matched to the values
+   it stands for (after `clean`, then ignoring case), and its definitions must cover
+   `min_coverage` (0.1) of their occurrences. In a field whose case was lost, a
    word that is also an acronym (a lower-cased "fish" next to FISH, the hybridization
    assay) is mostly the word, and stays unmapped.
 4. `identity_of` can name an authority id per term (a MeSH descriptor, a ROR id); no
@@ -201,7 +204,9 @@ maps an acronym only when one meaning dominates:
 The acronym and the dominant group's other spellings map to its most frequent long form;
 `SynonymMap.meta` counts the acronyms left out as ambiguous, uncovered or conflicting.
 Apply the acronym map before the semantic map, so the long form it produces is merged
-with its other variants.
+with its other variants. Counting holds every distinct pair in memory (7.4 million for
+PubMed); at that size count shards in parallel and add the Counters, or keep the counts
+in a database: `acronym_map` takes any mapping.
 
 ## 4. ROR authority split
 
@@ -288,10 +293,11 @@ source repository). Compose them with `Cleaner([...])`; three presets ship:
 - **`TERM_CLEANER`** (scientific terms, NER entities): the subject cleaner plus
   `fold_possessive`, which drops the possessive 's the way MeSH names eponymous terms
   ("Alzheimer's disease" -> "Alzheimer disease", "Fisher's exact test" -> "Fisher exact
-  test"). It also folds the form a tokenizer leaves ("alzheimer ' s disease"); in an NER
+  test", "Graves' disease" -> "Graves disease"). It also folds the form a tokenizer leaves ("alzheimer ' s disease"); in an NER
   vocabulary over PubMed abstracts 133,392 entity forms had that shape, and a rule against
-  one-letter words dropped every one of them. Prime notation ("5'-UTR") is kept. Not for
-  organization names ("King's College London").
+  one-letter words dropped every one of them. Prime notation ("5'-UTR") is kept, and so
+  is a quoted word ("the 'cells' marker"). Not for organization names ("King's College
+  London").
 
 Notes that matter in practice:
 

@@ -45,6 +45,10 @@ def test_fold_possessive():
     assert C.fold_possessive("Fisher's exact test") == "Fisher exact test"
     assert C.fold_possessive("5'-UTR of the 3' end") == "5'-UTR of the 3' end"   # prime notation kept
     assert C.fold_possessive("Parkinson's") == "Parkinson"
+    assert C.fold_possessive("Graves' disease") == "Graves disease"
+    assert C.fold_possessive("graves ' disease") == "graves disease"              # tokenized form
+    assert C.fold_possessive("Hodgkin's and Graves' disease") == "Hodgkin and Graves disease"
+    assert C.fold_possessive("the 'cells' marker") == "the 'cells' marker"        # a quoted word
 
 
 def test_term_cleaner_folds_but_org_cleaner_keeps_possessives():

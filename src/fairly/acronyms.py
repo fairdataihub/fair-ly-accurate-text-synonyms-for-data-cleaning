@@ -91,9 +91,14 @@ def definitions(text: str) -> List[Tuple[str, str]]:
     return out
 
 
-def count_definitions(texts: Iterable[str]) -> Counter:
-    """``Counter{(short, long): number of texts defining it}``; a text counts once per pair."""
-    counts: Counter = Counter()
+def count_definitions(texts: Iterable[str], into: Optional[Counter] = None) -> Counter:
+    """``Counter{(short, long): number of texts defining it}``; a text counts once per pair.
+
+    Memory grows with the number of distinct pairs (7.4 million over PubMed titles and
+    abstracts). For a corpus that size, count shards in parallel and add the Counters, or
+    keep the counts in a database and pass :func:`acronym_map` any mapping. ``into`` adds
+    to an existing Counter."""
+    counts: Counter = into if into is not None else Counter()
     for text in texts:
         if isinstance(text, str) and "(" in text:
             counts.update(set(definitions(text)))
@@ -114,32 +119,39 @@ def acronym_map(
 ) -> SynonymMap:
     """A :class:`SynonymMap` from acronym definitions (see the module docstring).
 
-    ``defs``        ``{(short, long): texts}``, e.g. from :func:`count_definitions`.
-    ``counts``      value frequencies of the field; when given, only short forms that occur
-                    as values are mapped, and ``min_coverage`` applies.
-    ``min_texts``   a definition must come from at least this many texts.
+    ``defs``        ``{(short, long): texts}``, e.g. from :func:`count_definitions`. Any
+                    mapping works, so the counting can live in a database for a large corpus.
+    ``counts``      value frequencies of the field. When given, a short form is matched to
+                    the field values it stands for (after ``clean``, then ignoring case), the
+                    map's keys are those values, and ``min_coverage`` applies to their total.
+    ``min_texts``   the dominant meaning must come from at least this many texts. Every
+                    definition, however rare, counts toward the share denominator.
     ``guard``       ``(variant, canonical) -> bool``, True when the remap names a different
                     entity; defaults to :class:`fairly.identity.IdentityGuard`.
-    ``identity_of`` optional term -> authority id; no mapping across two different ids.
-    ``clean``       optional cleaner applied to both forms first (e.g.
-                    :data:`fairly.presets.TERM_CLEANER`); a form it drops is skipped.
+    ``identity_of`` optional term -> authority id. Long forms with two different ids never
+                    share a group, and no value maps across two different ids.
+    ``clean``       optional cleaner applied to both forms (and to the ``counts`` keys) first,
+                    e.g. :data:`fairly.presets.TERM_CLEANER`; a form it drops is skipped.
     """
     if guard is None:
         from .identity import IdentityGuard
         guard = IdentityGuard()
     by_short: Dict[str, Counter] = {}
     for (sf, lf), n in defs.items():
-        if n < min_texts:
-            continue
         if clean is not None:
             sf, lf = clean(sf), clean(lf)
             if not sf or not lf:
                 continue
         by_short.setdefault(sf, Counter())[lf] += n
 
-    mapping: Dict[str, str] = {}
-    clusters: Dict[str, List[str]] = {}
-    n_ambiguous = n_uncovered = n_conflict = 0
+    exact: Dict[str, List[str]] = {}
+    folded: Dict[str, List[str]] = {}
+    if counts is not None:
+        for v in counts:
+            k = clean(v) if clean is not None else v
+            if k:
+                exact.setdefault(k, []).append(v)
+                folded.setdefault(k.casefold(), []).append(v)
 
     def conflict(a: str, b: str) -> bool:
         if identity_of is None:
@@ -147,35 +159,46 @@ def acronym_map(
         ia, ib = identity_of(a), identity_of(b)
         return bool(ia and ib and ia != ib)
 
+    mapping: Dict[str, str] = {}
+    clusters: Dict[str, List[str]] = {}
+    n_rare = n_ambiguous = n_uncovered = n_conflict = 0
     for sf in sorted(by_short):
+        if counts is None:
+            values = [sf]
+        else:
+            values = sorted(exact.get(sf) or folded.get(sf.casefold()) or [])
+            if not values:
+                continue
         forms = by_short[sf]
-        if counts is not None and sf not in counts:
-            continue
         total = sum(forms.values())
         groups: List[List] = []                       # [head, members, texts]
         for lf, n in sorted(forms.items(), key=lambda x: (-x[1], x[0])):
             for g in groups:
-                if not guard(lf, g[0]):
+                if not guard(lf, g[0]) and not conflict(lf, g[0]):
                     g[1].append(lf)
                     g[2] += n
                     break
             else:
                 groups.append([lf, [lf], n])
         head, members, n = max(groups, key=lambda g: (g[2], -groups.index(g)))
+        if n < min_texts:
+            n_rare += 1
+            continue
         if n < min_share * total:
             n_ambiguous += 1
             continue
-        if counts is not None and n < min_coverage * counts[sf]:
+        if counts is not None and n < min_coverage * sum(counts[v] for v in values):
             n_uncovered += 1
             continue
-        if conflict(sf, head):
+        if any(conflict(v, head) for v in [sf] + values):
             n_conflict += 1
             continue
-        joined = [sf] + [m for m in members if m != head and not conflict(m, head)]
-        for v in joined:
+        cluster = clusters.setdefault(head, [head])
+        for v in values + [m for m in members if m != head]:
             if v != head:
                 mapping.setdefault(v, head)
-        clusters[head] = [head] + joined
+            if v not in cluster:
+                cluster.append(v)
     return SynonymMap(mapping, clusters, field=field,
-                      meta={"strategy": "acronyms", "n_ambiguous": n_ambiguous,
+                      meta={"strategy": "acronyms", "n_rare": n_rare, "n_ambiguous": n_ambiguous,
                             "n_uncovered": n_uncovered, "n_conflict": n_conflict})
